@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./app:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    working_dir: /app

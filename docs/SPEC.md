@@ -1,0 +1,269 @@
+# Structural Analysis Web App — Spec
+
+**Objective:** Quick reference to avoid losing context on long projects. Current state, architecture, data flow, and next steps only.
+
+---
+
+## Architecture
+
+**Stack:**
+- Frontend: Vue 3 + TypeScript + Vite
+- State: Pinia (stores: structureStore, loadsStore, steelProfileStore, solverStore, settingsStore)
+- Routing: Vue Router 4
+- Styling: Tailwind CSS v4
+- Canvas: D3.js v7 (zoom, pan, interactive drawing)
+- FEM Math: mathjs (lusolve for matrix solve)
+- Testing: Vitest (unit), Playwright (e2e)
+
+**Infrastructure:**
+- Docker Compose — dev environment at `http://localhost:5173`
+- Node 22-alpine container
+- App source in `./app/`
+
+**Directory Structure:**
+```
+src/
+├── types/          ← TypeScript interfaces
+├── stores/         ← Pinia state management
+├── solver/         ← FEM engine (matrix stiffness method)
+├── components/     ← Vue components (canvas, panels, UI)
+├── views/          ← 4 pages: Workspace, SteelProfiles, Analysis, Report
+├── composables/    ← Reusable logic (undo/redo, viewport, session cache)
+└── data/           ← TIS steel profiles (374 total: H, I, C, L, RHS, CHS, RoundPipe, WideFlange, LightLipChannel)
+```
+
+---
+
+## Current State
+
+**✅ Completed (24/24 features):**
+
+1. **Interactive Canvas Workspace**
+   - D3 draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
+   - Pan/zoom: scroll wheel, middle-mouse, Space+drag temporary pan
+   - Keyboard shortcuts (S, P, N, M, L, D, R, Delete, Ctrl+Z/Y)
+   - Undo/Redo with debounced snapshots (up to 50 entries)
+   - Session persistence: auto-save to localStorage + resume dialog
+   - **Force labels now update when unit settings change**
+   - **Grid snap toggle** — snap new nodes to 80px grid (default on)
+   - **Editable node labels** — auto-assigned N1, N2, … with inline editing
+   - **Truss validation** — moment loads prevented on truss structures with UX feedback
+   - **Member label display on canvas** — shows member label + steel profile designation (e.g., "M1 / H 150×75") at midpoint, changes color when selected
+
+2. **FEM Solver**
+   - 2D Frame + Truss analysis via matrix stiffness method
+   - Nodes, members, loads (point, distributed, moment, supports)
+   - Calculates: displacements, reactions, member end forces
+
+3. **Steel Profile Database**
+   - **TIS 1228 Thai standard — 374 profiles total** (extracted from single source of truth: steel.xlsx)
+   - H-Sections (73), I-Sections (20), Channels (16), Equal Angles (46), Rectangular Tubes/RHS (26), Square Tubes/CHS (32), Round Pipes (35), Wide Flange (81), Light Lip Channel (45)
+   - Cross-section SVG rendering per profile class
+
+4. **Settings System**
+   - Units: Force (kN/N/tf), Length (m/cm/mm/ft), Stress (MPa/kPa/tf/cm²/ksc)
+   - Project info: name, engineer name
+   - Default member parameters: E, Fy, A, I
+   - **Deformed shape amplification slider (0–5000, displayed as 0.0x–50.0x, default 1000 = 10.0x)**
+   - All persisted to localStorage
+   - **Unit changes now propagate instantly to canvas, analysis, and report**
+
+5. **Analysis Page**
+   - DiagramPanel: interactive N/V/M diagrams (member selector + toggle buttons)
+   - Tables: reactions, displacements, member end forces (all with proper unit conversion)
+   - **DesignAssessmentPanel: per-member utilization ratios with pass/fail/marginal status**
+   - **Automated suggestions for structural improvements in Thai**
+
+6. **Print Report**
+   - Project header (name, engineer, units, code reference)
+   - **Section 1: Structure Diagram** — SVG canvas snapshot captured after analysis (responsive viewBox, fits print)
+   - **Section 2: Structure Summary** — type, node/member/load count, design pass/fail count
+   - **Section 3: Design Criteria** — AISC 360 φ values, K, Lb, PASS/MARGINAL/FAIL thresholds from `settings.urMarginal`/`urFail`, Fy/E defaults
+   - **Section 4–5: Nodes & Members** — with member length, profile name, type (Frame/Truss/Cable)
+   - **Section 6: Steel Profile Parameters** — d, bf, tf, tw, A, Ix, Iy, Sx, ry, Fy, mass (shown only when profiles used)
+   - **Section 7: Applied Loads** — label, type, location (member label for distributed loads), values in selected units
+   - **Sections 8–10: Reactions, Displacements, Member End Forces** — all unit-converted; displacement ux/uy in selected length unit
+   - **Section 11: Design Assessment (LRFD)** — per-member UR table with color-coded status, suggestion notes
+   - **Print CSS** — resets overflow constraints from App layout so all content prints; font/padding tuned for A4
+   - **Scrollable** — report page uses `overflow-y-auto` within fixed navbar layout
+   - All values converted to selected units
+
+7. **JSON Import/Export**
+   - ⬆⬇ button in navbar opens modal
+   - Two input methods: paste JSON or upload .json file
+   - Full validation of structure, members, loads schema
+   - Confirmation dialog before replacing current data
+   - Export button downloads current session as JSON
+
+8. **Testing**
+   - **99 E2E Playwright tests** across 12 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, bug-fix regressions
+   - **273 Vitest unit tests** covering solver, LRFD design checks, autoSize, and utility logic
+
+9. **Bug Fixes**
+   - Cross-section SVG: H/I, C, L, RHS, CHS render correctly
+   - Undo/Redo timing fixed with `nextTick()`
+   - **Unit reflection: canvas force labels, moment conversions, load values all now reactive**
+   - **Multi-assign panel blocked by `multiSelectActive`:** `WorkspaceView` intercepted member-only multi-select and showed the generic "Selection" panel instead of MemberPanel. Fixed: condition now excludes `nodeCount === 0 && memberCount > 1`.
+   - **Resume dialog re-shown on navigation-back:** `onMounted` guard now checks `structure.nodes.length === 0` so dialog only shows on a truly fresh start, not every WorkspaceView mount.
+   - **Analysis profile changes lost on workspace nav:** Profile assignments made in DesignAssessmentPanel weren't persisted (auto-save watcher only runs in WorkspaceView). Fixed: `applyProfile()` and `autoSizeAll()` now call `cache.saveSession()` explicitly.
+   - **UR mismatch between main table and sub-table:** TIS steel data stores `ry: 0` for all profiles. `autoSize.ts`'s `profileToSection()` was using `profile.ry` directly (= 0), skipping column buckling. Fixed: `ry = profile.Iy > 0 ? sqrt(Iy/A) : 0` — consistent with `designCheck.ts`.
+
+10. **Session Management**
+    - Auto-save 800ms after changes
+    - Resume dialog on page reload
+
+11. **Undo/Redo**
+    - 300ms debounced snapshots
+    - 50-entry stack with oldest drop-off
+    - Fixed watcher timing with `nextTick()`
+
+12. **Design Assessment** — LRFD (AISC 360)
+    - **Axial capacity** (AISC E3): Compression with column curve; Tension with Fy; both with φc/φt = 0.9
+    - **Flexural capacity** (AISC F2): Uses Sx with LTB check; Lp = 1.76×ry×√(E/Fy); φb = 0.9
+    - **Shear capacity** (AISC G2): Vn = 0.6×Fy×Av; φv = 1.0
+    - **Interaction** (H1-1): If UR_axial ≥ 0.2: UR_combined = UR_axial + (8/9)×UR_bending; else: UR_axial/2 + UR_bending
+    - UR_combined = max(interaction, UR_shear)
+    - Color-coded results: green (pass), yellow (marginal), red (fail)
+    - Thai-language improvement suggestions per member (with shear guidance)
+
+13. **Deformed Shape Visualization**
+    - DEF button on analysis canvas toggles deformed member overlay
+    - Deformed members shown as dashed blue lines with displacement amplification
+    - **Scale controlled via settings slider (0–5000, displayed as amplification factor: 0.0x–50.0x)**
+    - **Default: 1000 (10x amplification) for clear visibility**
+    - Canvas dashing scales with zoom for consistent appearance
+
+14. **Multi-select & Batch Delete**
+    - Rubber-band selection and Shift+click toggle in SELECT mode
+    - Right panel shows "Delete Selected" button when 2+ items selected
+    - Delete/Backspace cascades to remove orphaned loads (point, distributed, moment)
+    - **All dependent loads cleaned up automatically when nodes/members deleted**
+
+15. **Load Tools UX Rework**
+    - **Press L/D/R → right panel auto-switches to Load tab, loadType auto-set**
+    - **Click node in ADD_POINT_LOAD/ADD_MOMENT mode → Node dropdown pre-filled**
+    - **Click member in ADD_DIST_LOAD mode → Member dropdown pre-filled**
+    - **Click load item in list → form populates for editing with "Update Load" button**
+    - Cancel button exits edit mode; supports update/add workflows seamlessly
+
+16. **Auto-switch Tab on SELECT Click**
+    - **In SELECT mode, clicking a node → right panel switches to Node tab**
+    - **In SELECT mode, clicking a member → right panel switches to Member tab**
+    - **In SELECT mode, clicking a load arrow → right panel switches to Load tab with form pre-filled for editing**
+    - Load arrows (point, distributed, moment) now interactive in SELECT mode
+    - **Distributed load click area improved with invisible interaction rect** — easier to select
+    - Tab switching is automatic based on canvas selection/editing state
+
+17. **Friendly Member & Load Labels**
+    - **Member auto-label** — M1, M2, … (sequential) + editable in MemberPanel
+    - **Load auto-label** — PL1, DL1, ML1 (per-type counters) + editable in LoadPanel
+    - Labels shown in load list instead of raw ID slices
+    - Labels persist in reports
+    - Easy visual identification of members and loads during modeling
+
+18. **Enhanced Click/Drag UX (CAD-style interactions)**
+    - **Wider member hit area** — invisible 14px thick stroke behind 2px visible line; click members easily even when zoomed out
+    - **Deselect on background click** — clicking empty canvas in SELECT mode clears all selections
+    - **ADD_MEMBER ghost line preview** — dashed blue line follows cursor from first node to mouse; clear visual feedback
+    - **Improved cursor feedback** — load placement tools show crosshair cursor; member lines show pointer only in SELECT mode
+    - **Directional rubber-band selection (window vs crossing):**
+      - **Left→Right drag (window):** solid blue box, selects only elements completely inside box (traditional CAD window)
+      - **Right→Left drag (crossing):** dashed green box, selects any element the box touches or intersects (traditional CAD crossing)
+    - **Node drag coordinate fix** — accurate positioning even when canvas has left offset (e.g., left panel open)
+
+19. **Member Label Rotation (parallel to member line)**
+    - **Labels now align with member angle** — text rotates to run parallel to the member it labels instead of always being horizontal
+    - **Perpendicular offset** — labels stay offset "above" the member line regardless of angle (using SVG `dy` in rotated frame)
+    - **Readability guard** — text never renders upside-down; automatic 180° flip for members at steep angles
+    - **Improves visual hierarchy** — labels naturally follow member direction, matching CAD software convention
+
+20. **Tension-Only Members (Cable / Rod / Sling)**
+    - **Flag**: `tensionOnly?: boolean` on Member type; UI checkbox in MemberPanel
+    - **Iterative solver** — if tension-only member has compression force (N < 0), remove it and re-solve until no more members compress (max 50 iterations)
+    - **Slack handling** — removed members get zero forces in result (N=V=M=0) so UI doesn't break
+    - **Canvas visual indicator** — tension-only members shown as dashed orange lines (#f97316) for easy identification
+    - **Design check** — tension-only members: check only tensile axial stress (UR = T / φPn), skip bending/shear/compression checks
+    - **Supports cable/sling/hanger rods/diagonal braces** in structures (e.g., cable-stayed, suspended bridges)
+
+22. **Multi-assign Steel Profiles (Bulk)**
+    - When 2+ members are selected in Workspace, MemberPanel shows bulk-assign UI
+    - Profile dropdown + "Apply to N Members" button applies same profile to all selected
+    - "Remove Profile from All" clears `steelProfileId` for all selected members
+    - "Delete N Members" batch-deletes selected members (cleans up loads too)
+
+23. **Auto-size All (LRFD)**
+    - "⚡ Auto-size All" button in DesignAssessmentPanel (shown only when FAIL/MARGINAL members exist)
+    - Finds lightest steel profile (same class preferred) that achieves UR_combined < urFail for each failing member
+    - Updates member section properties; re-run analysis to verify results
+    - Count of changes shown in status message
+
+24. **Live Section Modifier (Alternatives Table)**
+    - Each row in DesignAssessmentPanel has a "▼" toggle button
+    - Expands AlternativesRow sub-panel showing alternative profiles from same class (sorted by mass)
+    - Shows UR_axial, UR_bending, UR_shear, UR_combined, status per alternative
+    - "Apply" button swaps profile immediately (updates member section, no re-analysis needed)
+    - Powered by `autoSize.ts`: `getAlternatives()` and `findOptimalProfile()`
+
+21. **Endpoint Reconnect (Member Drag)**
+    - **CAD-style endpoint handles** — selecting a single member in SELECT mode shows two white/blue circle handles at each endpoint
+    - **Drag to reconnect** — drag either handle to a different node to change `startNodeId`/`endNodeId` via `structure.updateMember()`
+    - **Live snap** — nearest node within 20 screen px highlighted with blue ring; member reconnects on mouse-up
+    - **Ghost line** — dashed blue line from fixed end to cursor during drag (same style as ADD_MEMBER preview)
+    - **No-snap cancel** — releasing in empty space leaves member unchanged
+    - **Full undo/redo** — changes captured by existing debounced watcher automatically
+    - **Layer**: `#endpoint-layer` SVG group on top of all canvas layers; handled by `drawEndpointHandles()` in `StructureCanvas.vue`
+
+---
+
+## Data Contract
+
+**Internal Units (always stored as):**
+- Force: kN
+- Length: m
+- Stress: MPa
+- Moments: kN·m
+
+**Data Flow:**
+1. **User Input** (canvas tools, panels) → convert via `fromLength()`, `fromForce()` → store in internal units
+2. **Storage** (Pinia stores) → always kN/m/MPa
+3. **Display** (tables, report, diagrams) → convert via `toLength()`, `toForce()`, `toStress()` using `settingsStore.unitLabel`
+
+**Key Types** (in `src/types/`):
+- `StructureNode`: { id, x, y, support, rollerAxis?, label }
+- `Member`: { id, startNodeId, endNodeId, steelProfileId, E, A, I, isTruss, tensionOnly?, label? }
+- `Load`: PointLoad | DistributedLoad | MomentLoad
+- `SteelProfile`: { id, standard, profileClass, d, bf, tf, tw, A, Ix, Iy, Sx, E, Fy, ... }
+- `SolverResult`: { success, nodeResults, reactions, memberResults }
+
+**Settings Store State:**
+```ts
+{
+  projectName, engineerName,
+  forceUnit, lengthUnit, stressUnit,
+  defaultE, defaultFy, defaultA, defaultI,
+  deformedScale,
+  snapshotDataUrl   // SVG data URL captured after analysis for report
+}
+```
+
+**LocalStorage Keys:**
+- `structcalc_session` — node/member/load snapshots + structure type
+- `structcalc_settings` — unit choices, project info, defaults
+
+---
+
+## Next Steps (Optional Enhancements)
+
+1. **Combined load cases** — support multiple load scenarios with enveloping
+2. **Capacity graphs** — plot utilization vs. member section improvements
+
+---
+
+**To run locally:**
+```bash
+docker compose up              # Start dev server
+npm run test:e2e              # Run e2e tests
+npm run test:e2e:ui           # Visual test UI
+```
+
+See `CLAUDE.md` for detailed implementation notes, keyboard shortcuts, canvas architecture, session/undo design, and testing strategy.
