@@ -231,3 +231,117 @@ test.describe('Distributed load rendering', () => {
     await expect(dlPolygon.first()).toBeAttached()
   })
 })
+
+test.describe('Roller support direction', () => {
+  async function addNodeWithRollerSupport(
+    page: import('@playwright/test').Page,
+    rollerAxis?: 'x' | 'y'
+  ) {
+    const svgBox = await page.locator('svg').boundingBox()
+    const cx = svgBox!.x + svgBox!.width / 2
+    const cy = svgBox!.y + svgBox!.height / 2
+    await page.keyboard.press('n')
+    await page.mouse.click(cx, cy)
+    await page.waitForTimeout(100)
+    await page.keyboard.press('s')
+    await page.locator('circle.node').first().click()
+    await page.waitForTimeout(150)
+    const supportSelect = page.locator('select').filter({ hasText: 'Free' }).first()
+    if (await supportSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await supportSelect.selectOption('roller')
+      await page.waitForTimeout(100)
+    }
+    if (rollerAxis === 'x') {
+      const axisSelect = page.locator('select').filter({ hasText: 'Vertical' }).first()
+      if (await axisSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await axisSelect.selectOption('x')
+        await page.waitForTimeout(150)
+      }
+    }
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/workspace')
+    const resumeBtn = page.getByRole('button', { name: 'Start New' })
+    if (await resumeBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await resumeBtn.click()
+    }
+  })
+
+  test('roller axis Y: triangle points down, wheels are side-by-side horizontally', async ({ page }) => {
+    await addNodeWithRollerSupport(page)
+
+    // Triangle polygon must exist
+    await page.locator('#node-layer polygon').waitFor({ state: 'attached', timeout: 3000 })
+
+    // #node-layer circle: index 0 = the node dot, index 1 & 2 = wheels
+    const w1 = page.locator('#node-layer circle').nth(1)
+    const w2 = page.locator('#node-layer circle').nth(2)
+    await w1.waitFor({ state: 'attached' })
+    await w2.waitFor({ state: 'attached' })
+
+    // Wheels are side-by-side horizontally → same cy, different cx
+    const cy1 = parseFloat((await w1.getAttribute('cy')) ?? '0')
+    const cy2 = parseFloat((await w2.getAttribute('cy')) ?? '0')
+    const cx1 = parseFloat((await w1.getAttribute('cx')) ?? '0')
+    const cx2 = parseFloat((await w2.getAttribute('cx')) ?? '0')
+    expect(cy1).toBeCloseTo(cy2, 3)
+    expect(Math.abs(cx1 - cx2)).toBeGreaterThan(0)
+  })
+
+  test('roller axis X: triangle points left, wheels are stacked vertically', async ({ page }) => {
+    await addNodeWithRollerSupport(page, 'x')
+
+    // Triangle polygon must exist
+    await page.locator('#node-layer polygon').waitFor({ state: 'attached', timeout: 3000 })
+
+    // #node-layer circle: index 0 = the node dot, index 1 & 2 = wheels
+    const w1 = page.locator('#node-layer circle').nth(1)
+    const w2 = page.locator('#node-layer circle').nth(2)
+    await w1.waitFor({ state: 'attached' })
+    await w2.waitFor({ state: 'attached' })
+
+    // Wheels are stacked vertically → same cx, different cy
+    const cx1 = parseFloat((await w1.getAttribute('cx')) ?? '0')
+    const cx2 = parseFloat((await w2.getAttribute('cx')) ?? '0')
+    const cy1 = parseFloat((await w1.getAttribute('cy')) ?? '0')
+    const cy2 = parseFloat((await w2.getAttribute('cy')) ?? '0')
+    expect(cx1).toBeCloseTo(cx2, 3)
+    expect(Math.abs(cy1 - cy2)).toBeGreaterThan(0)
+  })
+
+  test('roller axis X: triangle points left (polygon x-range extends left of node)', async ({ page }) => {
+    await addNodeWithRollerSupport(page, 'x')
+    await page.locator('#node-layer polygon').waitFor({ state: 'attached', timeout: 3000 })
+
+    const points = await page.locator('#node-layer polygon').first().getAttribute('points')
+    // All polygon points have x-coords ≤ node cx (triangle extends to the left)
+    const nodeX = parseFloat((await page.locator('circle.node').first().getAttribute('cx')) ?? '0')
+    const xs = (points ?? '').split(' ').map(p => parseFloat(p.split(',')[0]))
+    // At least one point is the apex (nodeX itself) and the rest are to the left
+    expect(xs.every(x => x <= nodeX + 0.01)).toBe(true)
+  })
+})
+
+test.describe('Middle mouse button pan', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/workspace')
+    await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+  })
+
+  test('middle mouse button can be pressed on canvas', async ({ page }) => {
+    const svgBox = await page.locator('svg').boundingBox()
+    const cx = svgBox!.x + svgBox!.width / 2
+    const cy = svgBox!.y + svgBox!.height / 2
+
+    // Verify middle mouse doesn't cause errors (middle button support)
+    await page.mouse.move(cx, cy)
+    await page.mouse.down({ button: 'middle' })
+    await page.waitForTimeout(50)
+    await page.mouse.up({ button: 'middle' })
+
+    // Canvas should still be responsive
+    const grid = await page.locator('#grid-layer').count()
+    expect(grid).toBeGreaterThan(0)
+  })
+})

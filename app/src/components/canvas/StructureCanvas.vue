@@ -199,7 +199,7 @@ function drawAll() {
     if (profile) {
       nodeLayer.append('text')
         .attr('class', 'member-label')
-        .attr('x', 0).attr('y', 6 / k)
+        .attr('x', 0).attr('y', 16 / k)
         .attr('text-anchor', 'middle')
         .attr('font-size', 9 / k)
         .attr('fill', '#94a3b8')
@@ -281,21 +281,70 @@ function drawAll() {
       const col = '#dc2626'
       const sw = 1.5 / k
 
-      if (node.support === 'pinned' || node.support === 'roller') {
-        // Triangle: apex at node, pointing downward toward base
+      if (node.support === 'pinned') {
+        // Triangle pointing down + horizontal base + hatch marks
         const triPts = `${cx},${cy} ${cx - sz * 1.4},${cy + sz * 2} ${cx + sz * 1.4},${cy + sz * 2}`
         nodeLayer.append('polygon')
           .attr('points', triPts)
           .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
           .style('pointer-events', 'none')
-        // Base line
         nodeLayer.append('line')
           .attr('x1', cx - sz * 1.7).attr('y1', cy + sz * 2)
           .attr('x2', cx + sz * 1.7).attr('y2', cy + sz * 2)
           .attr('stroke', col).attr('stroke-width', sw)
           .style('pointer-events', 'none')
-        if (node.support === 'roller') {
-          // Two small circles below base (wheels)
+        for (let i = 0; i < 4; i++) {
+          const hx = cx - sz * 1.3 + i * sz * 0.85
+          nodeLayer.append('line')
+            .attr('x1', hx).attr('y1', cy + sz * 2)
+            .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 2.7)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+        }
+      } else if (node.support === 'roller') {
+        if (node.rollerAxis === 'x') {
+          // Horizontal roller (constrained in X): triangle pointing LEFT
+          // apex at node, base is a vertical line to the left
+          const triPts = `${cx},${cy} ${cx - sz * 2},${cy - sz * 1.4} ${cx - sz * 2},${cy + sz * 1.4}`
+          nodeLayer.append('polygon')
+            .attr('points', triPts)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Vertical base line
+          nodeLayer.append('line')
+            .attr('x1', cx - sz * 2).attr('y1', cy - sz * 1.7)
+            .attr('x2', cx - sz * 2).attr('y2', cy + sz * 1.7)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Two wheels (circles) side-by-side vertically
+          nodeLayer.append('circle')
+            .attr('cx', cx - sz * 2.8).attr('cy', cy - sz * 0.6).attr('r', sz * 0.4)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          nodeLayer.append('circle')
+            .attr('cx', cx - sz * 2.8).attr('cy', cy + sz * 0.6).attr('r', sz * 0.4)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Vertical ground line
+          nodeLayer.append('line')
+            .attr('x1', cx - sz * 3.4).attr('y1', cy - sz * 1.7)
+            .attr('x2', cx - sz * 3.4).attr('y2', cy + sz * 1.7)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+        } else {
+          // Vertical roller (constrained in Y, default): triangle pointing DOWN
+          const triPts = `${cx},${cy} ${cx - sz * 1.4},${cy + sz * 2} ${cx + sz * 1.4},${cy + sz * 2}`
+          nodeLayer.append('polygon')
+            .attr('points', triPts)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Horizontal base line
+          nodeLayer.append('line')
+            .attr('x1', cx - sz * 1.7).attr('y1', cy + sz * 2)
+            .attr('x2', cx + sz * 1.7).attr('y2', cy + sz * 2)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Two wheels (circles) side-by-side horizontally
           nodeLayer.append('circle')
             .attr('cx', cx - sz * 0.6).attr('cy', cy + sz * 2.8).attr('r', sz * 0.4)
             .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
@@ -304,22 +353,12 @@ function drawAll() {
             .attr('cx', cx + sz * 0.6).attr('cy', cy + sz * 2.8).attr('r', sz * 0.4)
             .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
             .style('pointer-events', 'none')
-          // Ground line below wheels
+          // Horizontal ground line
           nodeLayer.append('line')
             .attr('x1', cx - sz * 1.7).attr('y1', cy + sz * 3.4)
             .attr('x2', cx + sz * 1.7).attr('y2', cy + sz * 3.4)
             .attr('stroke', col).attr('stroke-width', sw)
             .style('pointer-events', 'none')
-        } else {
-          // Hatch marks below base (pinned)
-          for (let i = 0; i < 4; i++) {
-            const hx = cx - sz * 1.3 + i * sz * 0.85
-            nodeLayer.append('line')
-              .attr('x1', hx).attr('y1', cy + sz * 2)
-              .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 2.7)
-              .attr('stroke', col).attr('stroke-width', sw)
-              .style('pointer-events', 'none')
-          }
         }
       }
 
@@ -613,8 +652,9 @@ function handleMouseMove(event: MouseEvent) {
     structure.updateNode(_nodeDragging.nodeId, { x: newX, y: newY })
   }
 
-  // Pan
-  if ((activeTool.value === 'PAN' || isSpaceHeld.value) && event.buttons === 1) {
+  // Pan (with PAN tool, Space+drag, or middle mouse button)
+  const isMiddlePressed = (event.buttons & 4) !== 0
+  if ((activeTool.value === 'PAN' || isSpaceHeld.value || isMiddlePressed) && event.buttons !== 0) {
     setViewport({
       ...viewport.value,
       x: viewport.value.x + event.movementX,
@@ -725,10 +765,19 @@ function handleMouseUp(event: MouseEvent) {
 }
 
 function handleMouseDown(event: MouseEvent) {
-  if (event.button !== 0 || !svgRef.value) return
+  if (!svgRef.value) return
   const rect = svgRef.value.getBoundingClientRect()
   const sx = event.clientX - rect.left
   const sy = event.clientY - rect.top
+
+  // Middle mouse button activates pan
+  if (event.button === 1) {
+    _selStart = { sx, sy }
+    _selDragging = false
+    return
+  }
+
+  if (event.button !== 0) return
 
   if (activeTool.value === 'ADD_NODE') {
     const [wx, wy] = screenToWorldVec(sx, sy)
@@ -861,6 +910,7 @@ onMounted(() => {
       () => loads.loads,
       () => solver.result,
       () => solver.showDeformed,
+      () => solver.deformedScale,
       () => viewport.value,
       () => activeTool.value,
     ],
