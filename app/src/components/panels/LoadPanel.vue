@@ -38,7 +38,7 @@ watch(activeTool, (tool) => {
   if (tool === 'ADD_POINT_LOAD') loadType.value = 'point_load'
   else if (tool === 'ADD_DIST_LOAD') loadType.value = 'distributed_load'
   else if (tool === 'ADD_MOMENT') loadType.value = 'moment'
-})
+}, { immediate: true })
 
 watch(pendingLoadNodeId, (id) => {
   if (id) targetNodeId.value = id

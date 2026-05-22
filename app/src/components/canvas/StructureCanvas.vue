@@ -91,29 +91,44 @@ function drawAll() {
     .append('polygon')
     .attr('points', '0 0, 6 2, 0 4')
     .attr('fill', '#dc2626')
+  defs.append('marker')
+    .attr('id', 'arrowhead-dl')
+    .attr('markerWidth', 6).attr('markerHeight', 4)
+    .attr('refX', 3).attr('refY', 2)
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr('points', '0 0, 6 2, 0 4')
+    .attr('fill', '#7c3aed')
 
   const g = svg.append('g')
     .attr('transform', `translate(${viewport.value.x},${viewport.value.y}) scale(${k})`)
 
-  // Grid
+  // Grid — adaptive size keeps ~80px screen spacing at any zoom
   const gridGroup = g.append('g').attr('id', 'grid-layer').style('pointer-events', 'none')
-  const gridSize = 80 / k
-  if (gridSize >= 1) {
-    const minX = Math.floor((-viewport.value.x) / k / gridSize) * gridSize
-    const maxX = Math.ceil((svgRef.value.clientWidth - viewport.value.x) / k / gridSize) * gridSize
-    const minY = Math.floor((-viewport.value.y) / k / gridSize) * gridSize
-    const maxY = Math.ceil((svgRef.value.clientHeight - viewport.value.y) / k / gridSize) * gridSize
-    for (let x = minX; x <= maxX; x += gridSize) {
-      gridGroup.append('line')
-        .attr('x1', x).attr('y1', minY).attr('x2', x).attr('y2', maxY)
-        .attr('stroke', '#e2e8f0').attr('stroke-width', 1 / k)
-    }
-    for (let y = minY; y <= maxY; y += gridSize) {
-      gridGroup.append('line')
-        .attr('x1', minX).attr('y1', y).attr('x2', maxX).attr('y2', y)
-        .attr('stroke', '#e2e8f0').attr('stroke-width', 1 / k)
-    }
+  const rawWorld = 80 / k
+  const gridSize = Math.pow(2, Math.ceil(Math.log2(rawWorld)))
+  const minX = Math.floor((-viewport.value.x) / k / gridSize) * gridSize
+  const maxX = Math.ceil((svgRef.value.clientWidth - viewport.value.x) / k / gridSize) * gridSize
+  const minY = Math.floor((-viewport.value.y) / k / gridSize) * gridSize
+  const maxY = Math.ceil((svgRef.value.clientHeight - viewport.value.y) / k / gridSize) * gridSize
+  for (let x = minX; x <= maxX; x += gridSize) {
+    gridGroup.append('line')
+      .attr('x1', x).attr('y1', minY).attr('x2', x).attr('y2', maxY)
+      .attr('stroke', '#e2e8f0').attr('stroke-width', 1 / k)
   }
+  for (let y = minY; y <= maxY; y += gridSize) {
+    gridGroup.append('line')
+      .attr('x1', minX).attr('y1', y).attr('x2', maxX).attr('y2', y)
+      .attr('stroke', '#e2e8f0').attr('stroke-width', 1 / k)
+  }
+  // Origin crosshair at (0,0)
+  const cross = 12 / k
+  gridGroup.append('line')
+    .attr('x1', -cross).attr('y1', 0).attr('x2', cross).attr('y2', 0)
+    .attr('stroke', '#94a3b8').attr('stroke-width', 1.5 / k)
+  gridGroup.append('line')
+    .attr('x1', 0).attr('y1', -cross).attr('x2', 0).attr('y2', cross)
+    .attr('stroke', '#94a3b8').attr('stroke-width', 1.5 / k)
 
   const memberLayer = g.append('g').attr('id', 'member-layer')
   const memberHitLayer = g.append('g').attr('id', 'member-hit-layer')
@@ -261,21 +276,69 @@ function drawAll() {
 
     // Support symbols
     if (node.support !== 'free') {
-      const sz = 6 / k
-      if (node.support === 'pinned' || node.support === 'fixed') {
+      const sz = 8 / k
+      const cx = node.x, cy = -node.y
+      const col = '#dc2626'
+      const sw = 1.5 / k
+
+      if (node.support === 'pinned' || node.support === 'roller') {
+        // Triangle: apex at node, pointing downward toward base
+        const triPts = `${cx},${cy} ${cx - sz * 1.4},${cy + sz * 2} ${cx + sz * 1.4},${cy + sz * 2}`
+        nodeLayer.append('polygon')
+          .attr('points', triPts)
+          .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+          .style('pointer-events', 'none')
+        // Base line
         nodeLayer.append('line')
-          .attr('x1', node.x - sz).attr('y1', -node.y + sz)
-          .attr('x2', node.x - sz * 2).attr('y2', -node.y + sz * 2)
-          .attr('stroke', '#dc2626').attr('stroke-width', 1.5 / k)
-        nodeLayer.append('line')
-          .attr('x1', node.x + sz).attr('y1', -node.y + sz)
-          .attr('x2', node.x + sz * 2).attr('y2', -node.y + sz * 2)
-          .attr('stroke', '#dc2626').attr('stroke-width', 1.5 / k)
+          .attr('x1', cx - sz * 1.7).attr('y1', cy + sz * 2)
+          .attr('x2', cx + sz * 1.7).attr('y2', cy + sz * 2)
+          .attr('stroke', col).attr('stroke-width', sw)
+          .style('pointer-events', 'none')
+        if (node.support === 'roller') {
+          // Two small circles below base (wheels)
+          nodeLayer.append('circle')
+            .attr('cx', cx - sz * 0.6).attr('cy', cy + sz * 2.8).attr('r', sz * 0.4)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          nodeLayer.append('circle')
+            .attr('cx', cx + sz * 0.6).attr('cy', cy + sz * 2.8).attr('r', sz * 0.4)
+            .attr('fill', 'none').attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+          // Ground line below wheels
+          nodeLayer.append('line')
+            .attr('x1', cx - sz * 1.7).attr('y1', cy + sz * 3.4)
+            .attr('x2', cx + sz * 1.7).attr('y2', cy + sz * 3.4)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+        } else {
+          // Hatch marks below base (pinned)
+          for (let i = 0; i < 4; i++) {
+            const hx = cx - sz * 1.3 + i * sz * 0.85
+            nodeLayer.append('line')
+              .attr('x1', hx).attr('y1', cy + sz * 2)
+              .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 2.7)
+              .attr('stroke', col).attr('stroke-width', sw)
+              .style('pointer-events', 'none')
+          }
+        }
       }
-      if (node.support === 'roller' || node.support === 'fixed') {
-        nodeLayer.append('circle')
-          .attr('cx', node.x).attr('cy', -node.y).attr('r', sz)
-          .attr('fill', 'none').attr('stroke', '#dc2626').attr('stroke-width', 1.5 / k)
+
+      if (node.support === 'fixed') {
+        // Thick horizontal bar through node
+        nodeLayer.append('rect')
+          .attr('x', cx - sz * 2).attr('y', cy - sz * 0.5)
+          .attr('width', sz * 4).attr('height', sz * 1)
+          .attr('fill', col).attr('rx', 1 / k)
+          .style('pointer-events', 'none')
+        // Hatch lines below bar
+        for (let i = 0; i < 5; i++) {
+          const hx = cx - sz * 1.7 + i * sz * 0.85
+          nodeLayer.append('line')
+            .attr('x1', hx).attr('y1', cy + sz * 0.5)
+            .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 1.2)
+            .attr('stroke', col).attr('stroke-width', sw)
+            .style('pointer-events', 'none')
+        }
       }
     }
 
@@ -336,6 +399,79 @@ function drawAll() {
 
       const dx = n2.x - n1.x
       const dy = n2.y - n1.y
+      const L = Math.sqrt(dx * dx + dy * dy)
+      if (L < 1e-9) continue
+
+      const ux = dx / L, uy = dy / L
+      // Local Y+ perpendicular: rotate member direction 90° CCW
+      const perpX = -uy, perpY = ux
+      const dlCol = '#7c3aed'
+      const sw = 1.5 / k
+      const arrowScale = 25 / k  // visual scale: 1 kN/m = 25/k canvas units
+      const numArrows = 7
+
+      // Build tip and base point arrays for polygon fill and baseline
+      const tipPtsSvg: string[] = []
+      const basePtsSvg: string[] = []
+
+      for (let i = 0; i <= numArrows; i++) {
+        const t = i / numArrows
+        const px = n1.x + t * dx, py = n1.y + t * dy  // world coords
+        const w = load.w1 + t * (load.w2 - load.w1)
+
+        // Tip offset direction: w<0 → tip on +perp side (above for horizontal beam)
+        let nX: number, nY: number
+        if (load.direction === 'global_y') {
+          nX = 0; nY = 1  // world Y+ = upward
+        } else {
+          nX = perpX; nY = perpY
+        }
+        const len = Math.abs(w) * arrowScale
+        const sign = w < 0 ? 1 : -1  // w<0 → tip on positive perp side
+        const tipWx = px + nX * len * sign
+        const tipWy = py + nY * len * sign
+
+        tipPtsSvg.push(`${tipWx},${-tipWy}`)
+        basePtsSvg.push(`${px},${-py}`)
+
+        // Individual arrow (skip last to avoid double-drawing at same pos)
+        if (i < numArrows && Math.abs(w) > 1e-9) {
+          loadGroup.append('line')
+            .attr('x1', tipWx).attr('y1', -tipWy)
+            .attr('x2', px).attr('y2', -py)
+            .attr('stroke', dlCol).attr('stroke-width', sw)
+            .attr('marker-end', 'url(#arrowhead-dl)')
+            .style('pointer-events', 'none')
+        }
+      }
+
+      // Filled trapezoidal region
+      const allPts = [...tipPtsSvg, ...[...basePtsSvg].reverse()].join(' ')
+      loadGroup.insert('polygon', ':first-child')
+        .attr('points', allPts)
+        .attr('fill', '#7c3aed22').attr('stroke', 'none')
+        .style('pointer-events', 'none')
+      // Baseline along tips
+      loadGroup.append('polyline')
+        .attr('points', tipPtsSvg.join(' '))
+        .attr('fill', 'none').attr('stroke', dlCol).attr('stroke-width', sw)
+        .style('pointer-events', 'none')
+
+      // Labels w1 and w2 at ends
+      const tip0 = tipPtsSvg[0].split(',').map(Number)
+      const tipN = tipPtsSvg[numArrows].split(',').map(Number)
+      loadGroup.append('text')
+        .attr('x', tip0[0]).attr('y', tip0[1] - 4 / k)
+        .attr('font-size', 10 / k).attr('fill', dlCol).attr('text-anchor', 'middle')
+        .text(`${settings.toForce(load.w1).toFixed(1)}`)
+        .style('pointer-events', 'none')
+      loadGroup.append('text')
+        .attr('x', tipN[0]).attr('y', tipN[1] - 4 / k)
+        .attr('font-size', 10 / k).attr('fill', dlCol).attr('text-anchor', 'middle')
+        .text(`${settings.toForce(load.w2).toFixed(1)} ${settings.distForceLabel}`)
+        .style('pointer-events', 'none')
+
+      // Invisible wide hit rect for click detection
       loadGroup.append('rect')
         .attr('x', Math.min(n1.x, n2.x) - 50 / k)
         .attr('y', Math.min(-n1.y, -n2.y) - 50 / k)
@@ -371,7 +507,7 @@ function drawAll() {
       nodeLayer.append('line')
         .attr('class', 'ghost-line')
         .attr('x1', startNode.x).attr('y1', -startNode.y)
-        .attr('x2', mouseCanvasPos.value.x).attr('y2', mouseCanvasPos.value.y)
+        .attr('x2', mouseCanvasPos.value.x).attr('y2', -mouseCanvasPos.value.y)
         .attr('stroke', '#3b82f6').attr('stroke-width', 2 / k)
         .attr('stroke-dasharray', `${4/k},${2/k}`)
         .style('pointer-events', 'none')
@@ -408,7 +544,7 @@ function drawAll() {
       handleLayer.append('line')
         .attr('class', 'ep-ghost')
         .attr('x1', fixedNode.x).attr('y1', -fixedNode.y)
-        .attr('x2', _epGhostPos.x).attr('y2', _epGhostPos.y)
+        .attr('x2', _epGhostPos.x).attr('y2', -_epGhostPos.y)
         .attr('stroke', '#3b82f6').attr('stroke-width', 1.5 / k)
         .attr('stroke-dasharray', `${4/k},${2/k}`)
         .style('pointer-events', 'none')
@@ -468,10 +604,13 @@ function handleMouseMove(event: MouseEvent) {
   if (_nodeDragging && event.buttons === 1) {
     const dx = wx - _nodeDragging.startWx
     const dy = wy - _nodeDragging.startWy
-    structure.updateNode(_nodeDragging.nodeId, {
-      x: _nodeDragging.origX + dx,
-      y: _nodeDragging.origY + dy
-    })
+    let newX = _nodeDragging.origX + dx
+    let newY = _nodeDragging.origY + dy
+    if (event.shiftKey) {
+      newX = Math.round(newX)
+      newY = Math.round(newY)
+    }
+    structure.updateNode(_nodeDragging.nodeId, { x: newX, y: newY })
   }
 
   // Pan
@@ -484,6 +623,32 @@ function handleMouseMove(event: MouseEvent) {
   }
 
   scheduleRender()
+}
+
+function segCross(ax: number, ay: number, bx: number, by: number,
+                  cx: number, cy: number, dx: number, dy: number): boolean {
+  const cross = (ux: number, uy: number, vx: number, vy: number) => ux * vy - uy * vx
+  const abx = bx - ax, aby = by - ay
+  const d1 = cross(abx, aby, cx - ax, cy - ay)
+  const d2 = cross(abx, aby, dx - ax, dy - ay)
+  const cdx = dx - cx, cdy = dy - cy
+  const d3 = cross(cdx, cdy, ax - cx, ay - cy)
+  const d4 = cross(cdx, cdy, bx - cx, by - cy)
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  return false
+}
+
+function segmentIntersectsRect(
+  x1: number, y1: number, x2: number, y2: number,
+  minX: number, minY: number, maxX: number, maxY: number
+): boolean {
+  if (x1 >= minX && x1 <= maxX && y1 >= minY && y1 <= maxY) return true
+  if (x2 >= minX && x2 <= maxX && y2 >= minY && y2 <= maxY) return true
+  return segCross(x1, y1, x2, y2, minX, minY, maxX, minY) ||
+         segCross(x1, y1, x2, y2, maxX, minY, maxX, maxY) ||
+         segCross(x1, y1, x2, y2, maxX, maxY, minX, maxY) ||
+         segCross(x1, y1, x2, y2, minX, maxY, minX, minY)
 }
 
 function handleMouseUp(event: MouseEvent) {
@@ -547,9 +712,9 @@ function handleMouseUp(event: MouseEvent) {
     if (n1 && n2) {
       const n1In = n1.x >= minX && n1.x <= maxX && n1.y >= minY && n1.y <= maxY
       const n2In = n2.x >= minX && n2.x <= maxX && n2.y >= minY && n2.y <= maxY
-      if (isWindow ? (n1In && n2In) : (n1In || n2In)) {
-        structure.selectMember(member.id, true)
-      }
+      const crosses = isWindow ? (n1In && n2In)
+        : segmentIntersectsRect(n1.x, n1.y, n2.x, n2.y, minX, minY, maxX, maxY)
+      if (crosses) structure.selectMember(member.id, true)
     }
   }
 
@@ -567,7 +732,8 @@ function handleMouseDown(event: MouseEvent) {
 
   if (activeTool.value === 'ADD_NODE') {
     const [wx, wy] = screenToWorldVec(sx, sy)
-    structure.addNode({ x: wx, y: wy, support: 'free' })
+    const snapped = snapPoint(wx, wy)
+    structure.addNode({ x: snapped.x, y: snapped.y, support: 'free' })
   } else if (activeTool.value === 'SELECT') {
     _selStart = { sx, sy }
   }
@@ -587,6 +753,7 @@ function handleKeyDown(event: KeyboardEvent) {
   if (key === 'D') setTool('ADD_DIST_LOAD')
   if (key === 'R') setTool('ADD_MOMENT')
   if (key === 'F') fitToView()
+  if (key === 'G') { toggleSnap(); scheduleRender(); return }
   if (key === 'ESCAPE') {
     structure.pendingMemberStartNodeId = null
     scheduleRender()
@@ -621,17 +788,19 @@ function handleKeyUp(event: KeyboardEvent) {
 }
 
 function fitToView() {
-  if (structure.nodes.length === 0) return
+  if (!svgRef.value || structure.nodes.length === 0) return
+  const W = svgRef.value.clientWidth
+  const H = svgRef.value.clientHeight
   const xs = structure.nodes.map(n => n.x)
   const ys = structure.nodes.map(n => n.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const width = maxX - minX || 100
-  const height = maxY - minY || 100
-  const k = Math.min(800 / (width * 1.2), 600 / (height * 1.2))
+  const width = maxX - minX || 1
+  const height = maxY - minY || 1
+  const k = Math.min(W / (width * 1.3), H / (height * 1.3))
   const cx = (minX + maxX) / 2
-  const cy = -(minY + maxY) / 2
-  setViewport({ ...viewport.value, k, x: 400 - cx * k, y: 300 + cy * k })
+  const cy = (minY + maxY) / 2
+  setViewport({ ...viewport.value, k, x: W / 2 - cx * k, y: H / 2 + cy * k })
 }
 
 function captureSnapshot(): string {
@@ -642,6 +811,11 @@ function captureSnapshot(): string {
 
 onMounted(() => {
   if (!svgRef.value) return
+
+  // Center world origin (0,0) at screen center
+  const W = svgRef.value.clientWidth
+  const H = svgRef.value.clientHeight
+  setViewport({ x: W / 2, y: H / 2, k: 80 })
 
   const svg = d3.select(svgRef.value)
   svg.on('mousemove', (event: MouseEvent) => handleMouseMove(event))

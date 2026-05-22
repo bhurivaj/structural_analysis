@@ -132,3 +132,102 @@ test.describe('Workspace Clear button', () => {
     await expect(page.getByText(/error/i)).not.toBeVisible()
   })
 })
+
+test.describe('Support icons rendering', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/workspace')
+    await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+    const resumeBtn = page.getByRole('button', { name: 'Start New' })
+    if (await resumeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await resumeBtn.click()
+  })
+
+  test('pinned support shows triangle polygon', async ({ page }) => {
+    const svgBox = await page.locator('svg').boundingBox()
+    const cx = svgBox!.x + svgBox!.width / 2
+    const cy = svgBox!.y + svgBox!.height / 2
+
+    await page.keyboard.press('n')
+    await page.mouse.click(cx, cy)
+    await page.waitForTimeout(100)
+
+    // Select node and assign pinned support (filter by 'Free' option to find support select)
+    await page.keyboard.press('s')
+    await page.locator('circle.node').first().click()
+    await page.waitForTimeout(150)
+    const supportSelect = page.locator('select').filter({ hasText: 'Free' }).first()
+    if (await supportSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await supportSelect.selectOption('pinned')
+      await page.waitForTimeout(100)
+    }
+
+    // Pinned support draws a polygon triangle in the node layer
+    await page.locator('#node-layer polygon').waitFor({ state: 'attached', timeout: 5000 })
+  })
+
+  test('fixed support shows rect block', async ({ page }) => {
+    const svgBox = await page.locator('svg').boundingBox()
+    const cx = svgBox!.x + svgBox!.width / 2
+    const cy = svgBox!.y + svgBox!.height / 2
+
+    await page.keyboard.press('n')
+    await page.mouse.click(cx, cy)
+    await page.waitForTimeout(100)
+
+    await page.keyboard.press('s')
+    await page.locator('circle.node').first().click()
+    await page.waitForTimeout(150)
+    const supportSelect = page.locator('select').filter({ hasText: 'Free' }).first()
+    if (await supportSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await supportSelect.selectOption('fixed')
+      await page.waitForTimeout(100)
+    }
+
+    // Fixed support draws a filled rect in the node layer
+    await page.locator('#node-layer rect').waitFor({ state: 'attached', timeout: 5000 })
+  })
+})
+
+test.describe('Distributed load rendering', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/workspace')
+    await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+    const resumeBtn = page.getByRole('button', { name: 'Start New' })
+    if (await resumeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await resumeBtn.click()
+  })
+
+  test('distributed load shows arrows in canvas after adding', async ({ page }) => {
+    const svgBox = await page.locator('svg').boundingBox()
+    const cx = svgBox!.x + svgBox!.width / 2
+    const cy = svgBox!.y + svgBox!.height / 2
+
+    // Add two nodes
+    await page.keyboard.press('n')
+    await page.mouse.click(cx - 80, cy)
+    await page.waitForTimeout(80)
+    await page.mouse.click(cx + 80, cy)
+    await page.waitForTimeout(80)
+
+    // Add member
+    await page.keyboard.press('m')
+    await page.locator('circle.node').first().click()
+    await page.waitForTimeout(50)
+    await page.locator('circle.node').last().click()
+    await page.waitForTimeout(80)
+
+    // Add distributed load (D key → click member hit area)
+    await page.keyboard.press('d')
+    await page.waitForTimeout(50)
+    await page.locator('line.member-hit').first().click({ force: true })
+    await page.waitForTimeout(200)
+
+    const addDlBtn = page.locator('button:has-text("Add Load")').first()
+    if (await addDlBtn.isVisible()) {
+      await addDlBtn.click()
+      await page.waitForTimeout(200)
+    }
+
+    // Distributed load renders fill polygon in force-layer
+    const dlPolygon = page.locator('#force-layer polygon')
+    await expect(dlPolygon.first()).toBeAttached()
+  })
+})

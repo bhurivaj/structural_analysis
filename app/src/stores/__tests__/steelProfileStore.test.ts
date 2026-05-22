@@ -22,9 +22,9 @@ describe('steelProfileStore', () => {
   })
 
   describe('initial state', () => {
-    it('starts with empty profiles', () => {
+    it('starts with seed profiles loaded', () => {
       const store = useSteelProfileStore()
-      expect(store.profiles).toEqual([])
+      expect(store.profiles.length).toBeGreaterThan(0)
     })
 
     it('filter defaults to ALL', () => {
@@ -66,24 +66,28 @@ describe('steelProfileStore', () => {
   describe('addProfile / deleteProfile', () => {
     it('addProfile appends a profile', () => {
       const store = useSteelProfileStore()
+      const before = store.profiles.length
       store.addProfile(makeProfile())
-      expect(store.profiles.length).toBe(1)
+      expect(store.profiles.length).toBe(before + 1)
     })
 
     it('deleteProfile removes the profile', () => {
       const store = useSteelProfileStore()
       store.addProfile(makeProfile({ id: 'X1' }))
+      expect(store.profileById('X1')).toBeDefined()
       store.deleteProfile('X1')
-      expect(store.profiles).toEqual([])
+      expect(store.profileById('X1')).toBeUndefined()
     })
 
     it('deleteProfile only removes the targeted profile', () => {
       const store = useSteelProfileStore()
+      const before = store.profiles.length
       store.addProfile(makeProfile({ id: 'P1' }))
-      store.addProfile(makeProfile({ id: 'P2', designation: 'H 300×300' }))
+      store.addProfile(makeProfile({ id: 'P2', designation: 'H 300×300×14×14' }))
       store.deleteProfile('P1')
-      expect(store.profiles.length).toBe(1)
-      expect(store.profiles[0].id).toBe('P2')
+      expect(store.profiles.length).toBe(before + 1)
+      expect(store.profileById('P2')).toBeDefined()
+      expect(store.profileById('P1')).toBeUndefined()
     })
   })
 
@@ -111,43 +115,54 @@ describe('steelProfileStore', () => {
 
     it('shows all profiles when filters are ALL', () => {
       const store = useSteelProfileStore()
-      expect(store.filteredProfiles.length).toBe(3)
+      // 3 test profiles + seed data
+      expect(store.filteredProfiles.length).toBeGreaterThan(3)
+      expect(store.profileById('P-TIS-H')).toBeDefined()
+      expect(store.profileById('P-JIS-H')).toBeDefined()
     })
 
     it('filters by standard', () => {
       const store = useSteelProfileStore()
-      store.filterStandard = 'TIS'
-      expect(store.filteredProfiles.length).toBe(2)
-      store.filteredProfiles.forEach(p => expect(p.standard).toBe('TIS'))
+      // Only P-JIS-H is JIS — all seed data is TIS
+      store.filterStandard = 'JIS'
+      expect(store.filteredProfiles.length).toBe(1)
+      expect(store.filteredProfiles[0].id).toBe('P-JIS-H')
     })
 
     it('filters by profile class', () => {
       const store = useSteelProfileStore()
       store.filterClass = 'H'
-      expect(store.filteredProfiles.length).toBe(2)
       store.filteredProfiles.forEach(p => expect(p.profileClass).toBe('H'))
+      expect(store.filteredProfiles.some(p => p.id === 'P-TIS-H')).toBe(true)
+      expect(store.filteredProfiles.some(p => p.id === 'P-JIS-H')).toBe(true)
+      expect(store.filteredProfiles.some(p => p.id === 'P-TIS-I')).toBe(false)
     })
 
     it('filters by both standard and class', () => {
       const store = useSteelProfileStore()
-      store.filterStandard = 'TIS'
+      // JIS+H isolates to exactly P-JIS-H
+      store.filterStandard = 'JIS'
       store.filterClass = 'H'
       expect(store.filteredProfiles.length).toBe(1)
-      expect(store.filteredProfiles[0].id).toBe('P-TIS-H')
+      expect(store.filteredProfiles[0].id).toBe('P-JIS-H')
     })
 
     it('filters by search query (case-insensitive)', () => {
       const store = useSteelProfileStore()
-      store.searchQuery = '200'
-      // 'H 200×200' and 'H 400×200' both contain '200'
-      expect(store.filteredProfiles.length).toBe(2)
+      // Use a unique designation that won't appear in seed data
+      store.addProfile(makeProfile({ id: 'UNIQ', designation: 'H ZZZTEST-UNIQUE-999' }))
+      store.searchQuery = 'ZZZTEST-UNIQUE-999'
+      expect(store.filteredProfiles.length).toBe(1)
+      expect(store.filteredProfiles[0].id).toBe('UNIQ')
     })
 
     it('search query matches partial designation', () => {
       const store = useSteelProfileStore()
-      store.searchQuery = 'I 300'
+      // Use unique JIS profile so seed data doesn't interfere
+      store.filterStandard = 'JIS'
+      store.searchQuery = 'H 400'
       expect(store.filteredProfiles.length).toBe(1)
-      expect(store.filteredProfiles[0].id).toBe('P-TIS-I')
+      expect(store.filteredProfiles[0].id).toBe('P-JIS-H')
     })
 
     it('search is case-insensitive', () => {
@@ -166,17 +181,19 @@ describe('steelProfileStore', () => {
   describe('groupedByClass computed', () => {
     it('groups profiles by profileClass', () => {
       const store = useSteelProfileStore()
-      store.addProfile(makeProfile({ id: 'H1', profileClass: 'H' }))
-      store.addProfile(makeProfile({ id: 'H2', profileClass: 'H', designation: 'H 300×300' }))
-      store.addProfile(makeProfile({ id: 'I1', profileClass: 'I', designation: 'I 200×100' }))
+      // Isolate to JIS to get only test-added profiles
+      store.addProfile(makeProfile({ id: 'JIS-H1', standard: 'JIS', profileClass: 'H' }))
+      store.addProfile(makeProfile({ id: 'JIS-H2', standard: 'JIS', profileClass: 'H', designation: 'H 300×300' }))
+      store.addProfile(makeProfile({ id: 'JIS-I1', standard: 'JIS', profileClass: 'I', designation: 'I 200×100' }))
+      store.filterStandard = 'JIS'
       const groups = store.groupedByClass
       expect(groups.get('H')!.length).toBe(2)
       expect(groups.get('I')!.length).toBe(1)
     })
 
-    it('returns empty map when no profiles exist', () => {
+    it('returns non-empty map from seed data', () => {
       const store = useSteelProfileStore()
-      expect(store.groupedByClass.size).toBe(0)
+      expect(store.groupedByClass.size).toBeGreaterThan(0)
     })
   })
 })
