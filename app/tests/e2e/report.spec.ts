@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-// Helper: build a simple supported beam with one point load and run analysis
+// Helper: build a simple cantilever with one point load and run analysis
 async function setupAndRunAnalysis(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
   await page.goto('/workspace')
   await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
@@ -13,7 +13,6 @@ async function setupAndRunAnalysis(page: Parameters<typeof test>[1] extends (...
   await page.keyboard.press('n')
   await page.mouse.click(cx - 80, cy)
   await page.waitForTimeout(80)
-  await page.keyboard.press('n')
   await page.mouse.click(cx + 80, cy)
   await page.waitForTimeout(80)
 
@@ -24,20 +23,26 @@ async function setupAndRunAnalysis(page: Parameters<typeof test>[1] extends (...
   await page.locator('circle.node').last().click()
   await page.waitForTimeout(80)
 
-  // Pin first node
+  // Fix first node (fixed support = 3 DOF reactions → stable cantilever)
   await page.keyboard.press('s')
   await page.locator('circle.node').first().click()
-  await page.waitForTimeout(80)
+  await page.waitForTimeout(100)
+  const supportSelect = page.locator('select').filter({ hasText: 'Pinned' }).first()
+  if (await supportSelect.isVisible()) {
+    await supportSelect.selectOption('fixed')
+    await page.waitForTimeout(50)
+  }
 
-  // Add point load on first node
+  // Add point load on second (free) node — default Fy=-10 kN
   await page.keyboard.press('l')
-  await page.locator('circle.node').first().click()
+  await page.locator('circle.node').last().click()
   await page.waitForTimeout(150)
+  await page.click('button:has-text("Add Load")')
+  await page.waitForTimeout(100)
 
   // Run analysis
-  await page.keyboard.press('s')
   await page.getByRole('button', { name: '▶ Run' }).click()
-  await page.waitForTimeout(500)
+  await page.waitForTimeout(800)
 }
 
 test.describe('Report view — static sections (no analysis)', () => {
@@ -106,7 +111,9 @@ test.describe('Report view — static sections (no analysis)', () => {
 test.describe('Report view — post-analysis sections', () => {
   test.beforeEach(async ({ page }) => {
     await setupAndRunAnalysis(page)
-    await page.goto('/report')
+    // Navigate via SPA link to preserve Pinia state (solver results are in-memory only)
+    await page.getByRole('link', { name: 'Report' }).click()
+    await page.waitForTimeout(500)
   })
 
   test('section 1: structure diagram shows image after analysis', async ({ page }) => {
@@ -138,8 +145,8 @@ test.describe('Report view — post-analysis sections', () => {
 
   test('section 10: member end forces uses member label not raw ID', async ({ page }) => {
     await expect(page.getByText('10. Member End Forces')).toBeVisible()
-    // Member label M1 should appear, not a raw UUID slice
-    await expect(page.locator('table').filter({ hasText: 'Member End Forces' })
+    // Member label M1 should appear in the table, not a raw UUID slice
+    await expect(page.locator('section').filter({ hasText: '10. Member End Forces' })
       .locator('td').filter({ hasText: 'M1' })).toBeVisible()
   })
 

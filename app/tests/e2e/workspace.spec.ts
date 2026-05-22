@@ -115,9 +115,11 @@ test.describe('Node drag with loads attached', () => {
     const node = page.locator('circle.node').first()
     await expect(node).toBeVisible()
 
-    // Add a point load to the node
+    // Add a point load to the node (default Fy=-10 renders an arrow)
     await page.keyboard.press('l')
     await node.click()
+    await page.waitForTimeout(200)
+    await page.click('button:has-text("Add Load")')
     await page.waitForTimeout(200)
 
     // Switch to SELECT mode

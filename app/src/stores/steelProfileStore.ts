@@ -4,7 +4,7 @@ import type { SteelProfile, ProfileStandard, ProfileClass } from '@/types/steel'
 import { tis_h, tis_i, tis_c, tis_l, tis_rhs, tis_chs, tis_rp, tis_wf, tis_llc } from '@/data/steelProfiles'
 
 export const useSteelProfileStore = defineStore('steelProfile', () => {
-  const profiles = ref<SteelProfile[]>([])
+  const profiles = ref<SteelProfile[]>([...tis_h, ...tis_i, ...tis_c, ...tis_l, ...tis_rhs, ...tis_chs, ...tis_rp, ...tis_wf, ...tis_llc])
   const filterStandard = ref<ProfileStandard | 'ALL'>('ALL')
   const filterClass = ref<ProfileClass | 'ALL'>('ALL')
   const searchQuery = ref('')
