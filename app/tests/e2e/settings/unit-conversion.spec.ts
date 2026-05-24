@@ -4,7 +4,7 @@ async function waitForGrid(page: Parameters<typeof test>[1] extends (...args: in
   await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
 }
 
-test.describe('Unit Conversion Bug Fixes', () => {
+test.describe('Unit Conversion', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/workspace')
     await waitForGrid(page)
