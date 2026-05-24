@@ -365,7 +365,7 @@ function drawAll() {
       if (node.support === 'fixed') {
         // Thick horizontal bar through node
         nodeLayer.append('rect')
-          .attr('x', cx - sz * 2).attr('y', cy - sz * 0.5)
+          .attr('x', cx - sz * 2).attr('y', cy - sz * -0.5)
           .attr('width', sz * 4).attr('height', sz * 1)
           .attr('fill', col).attr('rx', 1 / k)
           .style('pointer-events', 'none')
@@ -373,8 +373,8 @@ function drawAll() {
         for (let i = 0; i < 5; i++) {
           const hx = cx - sz * 1.7 + i * sz * 0.85
           nodeLayer.append('line')
-            .attr('x1', hx).attr('y1', cy + sz * 0.5)
-            .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 1.2)
+            .attr('x1', hx).attr('y1', cy + sz * 1.5)
+            .attr('x2', hx - sz * 0.5).attr('y2', cy + sz * 2.2)
             .attr('stroke', col).attr('stroke-width', sw)
             .style('pointer-events', 'none')
         }
@@ -854,8 +854,17 @@ function fitToView() {
 
 function captureSnapshot(): string {
   if (!svgRef.value) return ''
+  const W = svgRef.value.clientWidth
+  const H = svgRef.value.clientHeight
   const clone = svgRef.value.cloneNode(true) as SVGSVGElement
-  return `data:image/svg+xml;base64,${btoa(new XMLSerializer().serializeToString(clone))}`
+  clone.setAttribute('width', String(W))
+  clone.setAttribute('height', String(H))
+  clone.setAttribute('viewBox', `0 0 ${W} ${H}`)
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+  const svgStr = new XMLSerializer().serializeToString(clone)
+  const bytes = new TextEncoder().encode(svgStr)
+  const binary = Array.from(bytes, b => String.fromCharCode(b)).join('')
+  return `data:image/svg+xml;base64,${btoa(binary)}`
 }
 
 onMounted(() => {

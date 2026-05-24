@@ -1,3 +1,5 @@
+import type { LoadCaseCategory } from './loadCases'
+
 export interface PointLoad {
   id: string
   type: 'point_load'
@@ -5,6 +7,7 @@ export interface PointLoad {
   fx: number
   fy: number
   label?: string
+  loadCase?: LoadCaseCategory
 }
 
 export interface DistributedLoad {
@@ -15,6 +18,7 @@ export interface DistributedLoad {
   w2: number
   direction: 'local_y' | 'global_y'
   label?: string
+  loadCase?: LoadCaseCategory
 }
 
 export interface MomentLoad {
@@ -23,6 +27,7 @@ export interface MomentLoad {
   nodeId: string
   mz: number
   label?: string
+  loadCase?: LoadCaseCategory
 }
 
 export type Load = PointLoad | DistributedLoad | MomentLoad

@@ -316,3 +316,70 @@ describe('runFemAnalysis — frame with distributed load', () => {
     })
   })
 })
+
+// ── trapezoidal distributed load — V/M diagram accuracy ──────────────────────
+// Simply supported beam (pinned-roller), L=4m split into 2 members.
+// Distributed load: w1=10 kN/m at x=0, w2=30 kN/m at x=4m (positive = upward in this app).
+// Reactions are downward (negative ry) opposing the upward distributed load.
+//
+// Key invariant tested (Bug 2 regression): at the last station of M1 (x=L_m1),
+// V and M must satisfy the integral of the trapezoidal load over [0, L_m1],
+// NOT the incorrect w(xi)*x approximation that was removed.
+describe('runFemAnalysis — trapezoidal distributed load V/M accuracy', () => {
+  const w1 = 10, w2 = 30, L = 4
+  const dw = w2 - w1
+  const L_m1 = L / 2   // member M1 length = 2m
+  // w on M1: 10 at x=0, 20 at x=2; dw_m1 = 10
+  const w1_m1 = w1, w2_m1 = w1 + dw * 0.5, dw_m1 = dw * 0.5
+
+  const nodes: StructureNode[] = [
+    { id: 'A', x: 0,   y: 0, support: 'pinned' },
+    { id: 'B', x: L/2, y: 0, support: 'free' },
+    { id: 'C', x: L,   y: 0, support: 'roller', rollerAxis: 'y' },
+  ]
+  const members = [
+    makeMember('M1', 'A', 'B'),
+    makeMember('M2', 'B', 'C'),
+  ]
+  const loads: Load[] = [
+    { id: 'L1', type: 'distributed_load', memberId: 'M1', w1: w1_m1, w2: w2_m1, direction: 'local_y' },
+    { id: 'L2', type: 'distributed_load', memberId: 'M2', w1: w2_m1, w2, direction: 'local_y' },
+  ]
+
+  it('succeeds', () => {
+    const result = runFemAnalysis(nodes, members, loads, 'frame')
+    expect(result.success).toBe(true)
+  })
+
+  it('|reactions| sum to total load (w1+w2)/2·L', () => {
+    // Reactions are negative (downward) opposing the upward distributed load
+    const result = runFemAnalysis(nodes, members, loads, 'frame')
+    const totalRy = result.reactions.reduce((s, r) => s + r.ry, 0)
+    expect(Math.abs(totalRy)).toBeCloseTo((w1 + w2) / 2 * L, 1)  // 80 kN magnitude
+  })
+
+  it('V at end of M1 equals V1 minus correct load integral (not w(xi)·x)', () => {
+    // The correct integral of trapezoidal load over [0, L_m1]:
+    //   ∫₀ᴸ [w1 + (w2-w1)·x/L] dx = w1·L + dw·L/2 = (w1+w2)·L/2
+    // V[last] = V[0] - load_integral
+    const result = runFemAnalysis(nodes, members, loads, 'frame')
+    const mr1 = result.memberResults.find(r => r.memberId === 'M1')!
+    const V1 = mr1.V[0]  // start shear from FEM
+    const load_integral = w1_m1 * L_m1 + dw_m1 * L_m1 / 2  // = (10+20)/2 * 2 = 30 kN
+    const expected_V_last = V1 - load_integral
+    expect(mr1.V[mr1.V.length - 1]).toBeCloseTo(expected_V_last, 2)
+  })
+
+  it('M at end of M1 satisfies beam integral from M1 start', () => {
+    // M[last] = M[0] + V1·L - ∫₀ᴸ ∫₀ˣ w(ξ)dξ dx
+    //         = M[0] + V1·L - (w1·L²/2 + dw·L²/6)  [second moment of trapezoidal]
+    const result = runFemAnalysis(nodes, members, loads, 'frame')
+    const mr1 = result.memberResults.find(r => r.memberId === 'M1')!
+    const V1 = mr1.V[0]
+    const M1_val = mr1.M[0]
+    const expected_M_last = M1_val + V1 * L_m1
+      - w1_m1 * L_m1 * L_m1 / 2
+      - dw_m1 * L_m1 * L_m1 / 6
+    expect(mr1.M[mr1.M.length - 1]).toBeCloseTo(expected_M_last, 2)
+  })
+})

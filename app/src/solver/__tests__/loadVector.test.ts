@@ -149,5 +149,46 @@ describe('assembleForceVector', () => {
       // global_y path in code doesn't add moments
       expect(F[0]).toBeCloseTo(0, 5)   // fx at A
     })
+
+    describe('trapezoidal distributed load (w1 ≠ w2)', () => {
+      // Fixed-fixed beam, L=4m, w1=10 kN/m, w2=30 kN/m
+      // Correct fixed-end forces (superposition UDL(w1) + triangular(0→dw)):
+      //   Fy1 = (7·w1 + 3·w2)·L/20 = (70+90)·4/20 = 32 kN
+      //   Fy2 = (3·w1 + 7·w2)·L/20 = (30+210)·4/20 = 48 kN
+      //   M1  = w1·L²/12 + dw·L²/30 = 10·16/12 + 20·16/30 = 13.33 + 10.67 = 24 kN·m
+      //   M2  = -(w1·L²/12 + dw·L²/20) = -(13.33 + 16) = -29.33 kN·m
+      const w1 = 10, w2 = 30, L = 4
+      const dw = w2 - w1
+      const load: Load = { id: 'L1', type: 'distributed_load', memberId: 'M1', w1, w2, direction: 'local_y' }
+
+      it('Fy1 matches (7w1+3w2)L/20', () => {
+        const F = assembleForceVector([load], nodes, members, dofMap, 'frame', 6)
+        const expected = (7 * w1 + 3 * w2) * L / 20   // 32 kN
+        expect(F[1]).toBeCloseTo(expected, 3)
+      })
+
+      it('Fy2 matches (3w1+7w2)L/20', () => {
+        const F = assembleForceVector([load], nodes, members, dofMap, 'frame', 6)
+        const expected = (3 * w1 + 7 * w2) * L / 20   // 48 kN
+        expect(F[4]).toBeCloseTo(expected, 3)
+      })
+
+      it('reactions sum to total load (w1+w2)/2·L', () => {
+        const F = assembleForceVector([load], nodes, members, dofMap, 'frame', 6)
+        expect(F[1] + F[4]).toBeCloseTo((w1 + w2) / 2 * L, 3)  // 80 kN
+      })
+
+      it('M1 matches w1·L²/12 + dw·L²/30', () => {
+        const F = assembleForceVector([load], nodes, members, dofMap, 'frame', 6)
+        const expected = w1 * L * L / 12 + dw * L * L / 30  // 24 kN·m
+        expect(F[2]).toBeCloseTo(expected, 3)
+      })
+
+      it('M2 matches -(w1·L²/12 + dw·L²/20)', () => {
+        const F = assembleForceVector([load], nodes, members, dofMap, 'frame', 6)
+        const expected = -(w1 * L * L / 12 + dw * L * L / 20)  // -29.33 kN·m
+        expect(F[5]).toBeCloseTo(expected, 3)
+      })
+    })
   })
 })

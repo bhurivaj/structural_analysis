@@ -53,19 +53,15 @@ function applyDistributedLoad(
   const w1 = load.w1
   const w2 = load.w2
 
-  // Uniform part (average) and linearly varying part
-  const wAvg = (w1 + w2) / 2
+  // Superposition: UDL(w1) + triangular(0 → dw=w2-w1)
+  // Fixed-end forces for UDL w1: Fy=w1L/2, M=w1L²/12
+  // Fixed-end forces for triangular 0→dw: Fy1=3dw L/20, M1=dw L²/30, Fy2=7dw L/20, M2=-dw L²/20
+  const wAvg = (w1 + w2) / 2  // kept for global_y simplified path below
   const dw = w2 - w1
-
-  // Fixed-end reactions for UDL (wAvg) in local coords:
-  // Fy1 = wAvg*L/2, M1 = wAvg*L²/12, Fy2 = wAvg*L/2, M2 = -wAvg*L²/12
-  // Linearly varying (dw from 0 to dw over L):
-  // Fy1 = 7*dw*L/20 (at start), Fy2 = 3*dw*L/20 (but sign convention varies)
-  // Using consistent fixed-end force formulas:
-  const fy1_local = wAvg * L / 2 + 3 * dw * L / 20
-  const m1_local = wAvg * L * L / 12 + dw * L * L / 30
-  const fy2_local = wAvg * L / 2 + 7 * dw * L / 20
-  const m2_local = -(wAvg * L * L / 12 + dw * L * L / 20)
+  const fy1_local = w1 * L / 2 + 3 * dw * L / 20   // = (7w1+3w2)L/20
+  const m1_local = w1 * L * L / 12 + dw * L * L / 30
+  const fy2_local = w1 * L / 2 + 7 * dw * L / 20   // = (3w1+7w2)L/20
+  const m2_local = -(w1 * L * L / 12 + dw * L * L / 20)
 
   // Rotate from local to global (load direction in global_y is already vertical)
   // For local_y loads, the local y-axis is perpendicular to member

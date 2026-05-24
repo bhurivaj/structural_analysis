@@ -4,8 +4,14 @@ import { useSolverStore } from '@/stores/solverStore'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSteelProfileStore } from '@/stores/steelProfileStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { performDesignCheck, type DesignCheckResult } from '@/utils/designCheck'
+import {
+  performDesignCheck,
+  performDesignCheckEnvelope,
+  type DesignCheckResult,
+  type EnvelopeDesignCheckResult,
+} from '@/utils/designCheck'
 import { findOptimalProfile } from '@/utils/autoSize'
+import { envelopeToMemberResult } from '@/solver/envelopeAnalysis'
 import { useSessionCache } from '@/composables/useSessionCache'
 import AlternativesRow from './AlternativesRow.vue'
 
@@ -18,12 +24,26 @@ const cache = useSessionCache()
 const expandedMemberId = ref<string | null>(null)
 const isSizing = ref(false)
 const sizingMessage = ref('')
+const envelopeMode = ref(false)
 
 const membersMap = computed(() => new Map(structure.members.map(m => [m.id, m])))
 const nodesMap = computed(() => new Map(structure.nodes.map(n => [n.id, n])))
 const profilesMap = computed(() => new Map(steelProfiles.profiles.map(p => [p.id, p])))
 
-const designResults = computed<DesignCheckResult[]>(() => {
+const hasEnvelope = computed(() => !!solver.envelopeResult?.success)
+
+const designResults = computed<(DesignCheckResult | EnvelopeDesignCheckResult)[]>(() => {
+  if (envelopeMode.value && hasEnvelope.value) {
+    return performDesignCheckEnvelope(
+      solver.envelopeResult!.perComboResults,
+      membersMap.value,
+      nodesMap.value,
+      profilesMap.value,
+      settings.defaultFy,
+      settings.urMarginal,
+      settings.urFail,
+    )
+  }
   if (!solver.result?.success) return []
   return performDesignCheck(
     solver.result.memberResults,
@@ -41,6 +61,22 @@ const totalCount = computed(() => designResults.value.length)
 const failOrMarginalResults = computed(() =>
   designResults.value.filter(r => r.status === 'FAIL' || r.status === 'MARGINAL'),
 )
+
+function governingCombo(result: DesignCheckResult | EnvelopeDesignCheckResult): string | null {
+  return 'governingCombo' in result ? result.governingCombo : null
+}
+
+function memberResultForAlternatives(memberId: string) {
+  if (envelopeMode.value && hasEnvelope.value) {
+    const envelope = solver.envelopeResult!.envelopes.find(e => e.memberId === memberId)
+    if (envelope) return envelopeToMemberResult(envelope)
+  }
+  return solver.result?.memberResults.find(r => r.memberId === memberId) ?? null
+}
+
+function requireMemberResult(memberId: string) {
+  return memberResultForAlternatives(memberId)!
+}
 
 function getStatusColor(status: string): string {
   if (status === 'PASS') return '#10b981'
@@ -72,15 +108,14 @@ function applyProfile(memberId: string, profileId: string) {
 }
 
 async function autoSizeAll() {
-  if (!solver.result?.success) return
+  if (!solver.result?.success && !hasEnvelope.value) return
   isSizing.value = true
   sizingMessage.value = ''
 
-  const memberResults = solver.result.memberResults
   let changeCount = 0
 
   for (const result of failOrMarginalResults.value) {
-    const mr = memberResults.find(r => r.memberId === result.memberId)
+    const mr = memberResultForAlternatives(result.memberId)
     const member = membersMap.value.get(result.memberId)
     if (!mr || !member) continue
 
@@ -121,20 +156,34 @@ function currentProfileClass(result: DesignCheckResult): string | undefined {
 </script>
 
 <template>
-  <div v-if="designResults.length > 0" class="space-y-3">
-    <div class="flex items-center justify-between">
+  <div v-if="designResults.length > 0 || hasEnvelope || solver.result?.success" class="space-y-3">
+    <div class="flex items-center justify-between gap-2 flex-wrap">
       <div class="text-sm font-medium text-slate-700">
         Design Assessment
         <span class="ml-2 text-xs text-slate-600">({{ passCount }}/{{ totalCount }} members pass)</span>
       </div>
-      <button
-        v-if="failOrMarginalResults.length > 0"
-        :disabled="isSizing"
-        class="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 disabled:opacity-50 font-medium"
-        @click="autoSizeAll"
-      >
-        ⚡ Auto-size All
-      </button>
+      <div class="flex items-center gap-1.5">
+        <div v-if="hasEnvelope" class="flex rounded border border-slate-200 overflow-hidden text-xs">
+          <button
+            class="px-2 py-0.5 transition-colors"
+            :class="!envelopeMode ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'"
+            @click="envelopeMode = false"
+          >Active</button>
+          <button
+            class="px-2 py-0.5 transition-colors"
+            :class="envelopeMode ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'"
+            @click="envelopeMode = true"
+          >Envelope</button>
+        </div>
+        <button
+          v-if="failOrMarginalResults.length > 0"
+          :disabled="isSizing"
+          class="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 disabled:opacity-50 font-medium"
+          @click="autoSizeAll"
+        >
+          ⚡ Auto-size All
+        </button>
+      </div>
     </div>
 
     <p v-if="sizingMessage" class="text-xs px-2 py-1 rounded"
@@ -152,6 +201,7 @@ function currentProfileClass(result: DesignCheckResult): string | undefined {
           <th class="px-2 py-1 text-right text-slate-600">UR_shear</th>
           <th class="px-2 py-1 text-right text-slate-600">UR_combined</th>
           <th class="px-2 py-1 text-center text-slate-600">Status</th>
+          <th v-if="envelopeMode" class="px-2 py-1 text-left text-slate-600">Governing</th>
           <th class="px-2 py-1 text-left text-slate-600">Suggestion</th>
           <th class="px-2 py-1 text-center text-slate-600">Alt</th>
         </tr>
@@ -176,6 +226,11 @@ function currentProfileClass(result: DesignCheckResult): string | undefined {
             <td class="px-2 py-1 text-center font-bold" :style="{ color: getStatusColor(result.status) }">
               {{ getStatusIcon(result.status) }} {{ result.status }}
             </td>
+            <td v-if="envelopeMode" class="px-2 py-1">
+              <span v-if="governingCombo(result)" class="text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-200 rounded px-1 py-0.5 whitespace-nowrap">
+                {{ governingCombo(result) }}
+              </span>
+            </td>
             <td class="px-2 py-1 text-slate-600">{{ result.suggestion }}</td>
             <td class="px-2 py-1 text-center">
               <button
@@ -188,9 +243,10 @@ function currentProfileClass(result: DesignCheckResult): string | undefined {
             </td>
           </tr>
           <tr v-if="expandedMemberId === result.memberId">
-            <td colspan="9" class="p-0">
+            <td :colspan="envelopeMode ? 10 : 9" class="p-0">
               <AlternativesRow
-                :member-result="solver.result!.memberResults.find(r => r.memberId === result.memberId)!"
+                v-if="memberResultForAlternatives(result.memberId)"
+                :member-result="requireMemberResult(result.memberId)"
                 :member="membersMap.get(result.memberId)!"
                 :nodes="nodesMap"
                 :profiles="steelProfiles.profiles"

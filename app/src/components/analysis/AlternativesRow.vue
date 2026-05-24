@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { MemberResult } from '@/types/solver'
 import type { Member, StructureNode } from '@/types/structure'
 import type { SteelProfile } from '@/types/steel'
 import { getAlternatives } from '@/utils/autoSize'
+import CapacityGraph from './CapacityGraph.vue'
 
 const props = defineProps<{
   memberResult: MemberResult
@@ -19,6 +20,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   apply: [profileId: string]
 }>()
+
+const activeTab = ref<'table' | 'graph'>('table')
 
 const alternatives = computed(() =>
   getAlternatives(
@@ -42,11 +45,34 @@ function statusColor(status: string): string {
 
 <template>
   <div class="bg-slate-50 border-t border-slate-200 px-3 py-2">
-    <div class="text-xs font-medium text-slate-600 mb-1">
-      Alternative Profiles
-      <span v-if="currentProfileClass" class="text-slate-400">({{ currentProfileClass }} class, sorted by mass)</span>
+    <div class="flex items-center justify-between mb-1.5">
+      <div class="text-xs font-medium text-slate-600">
+        Alternative Profiles
+        <span v-if="currentProfileClass" class="text-slate-400">({{ currentProfileClass }} class, sorted by mass)</span>
+      </div>
+      <div class="flex rounded border border-slate-200 overflow-hidden text-[10px]">
+        <button
+          class="px-2 py-0.5 transition-colors"
+          :class="activeTab === 'table' ? 'bg-slate-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+          @click="activeTab = 'table'"
+        >Table</button>
+        <button
+          class="px-2 py-0.5 transition-colors"
+          :class="activeTab === 'graph' ? 'bg-slate-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'"
+          @click="activeTab = 'graph'"
+        >Graph</button>
+      </div>
     </div>
-    <div v-if="alternatives.length === 0" class="text-xs text-slate-400">No alternatives found.</div>
+
+    <CapacityGraph
+      v-if="activeTab === 'graph'"
+      :alternatives="alternatives"
+      :current-profile-id="member.steelProfileId ?? null"
+      :ur-marginal="urMarginal"
+      :ur-fail="urFail"
+    />
+
+    <div v-else-if="alternatives.length === 0" class="text-xs text-slate-400">No alternatives found.</div>
     <table v-else class="w-full text-xs border-collapse">
       <thead>
         <tr class="text-slate-500">

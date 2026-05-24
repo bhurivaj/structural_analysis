@@ -44,7 +44,7 @@ npm run test:e2e:debug # Debug mode
 
 ## Project Structure
 
-```
+```tree
 src/
 ├── types/              ← TypeScript interfaces (structure, loads, solver results)
 ├── stores/             ← Pinia state management
@@ -82,7 +82,7 @@ See `./docs/` for detailed guides:
 
 ### Before any task
 
-1. Read `./docs/SPEC.md` first (Architecture, Current State, Data Contract, Next Steps).
+1. Read `./docs/SPEC.md` first (Architecture, Current State, Data Contract, Gap Analysis, Next Steps).
 2. **For ANY bug fix or new feature: Design test case FIRST** before implementation.
    - Identify what you're testing (solver logic, UI interaction, integration, etc.)
    - List expected outcomes
@@ -120,6 +120,44 @@ See `./docs/` for detailed guides:
    - All tests passing ✅
    - Test files committed ✅
    - Docs updated ✅
+
+---
+
+## Recent Fixes & Improvements (May 2026)
+
+**Canvas & Interaction:**
+- Fixed ghost line Y-coordinate negation (member/endpoint preview now draws in correct direction)
+- Fixed fit-to-view button: uses actual SVG dimensions, correct Y-coordinate formula
+- Canvas origin (0,0) now centers at screen on startup
+- Added origin marker crosshair visible at world (0,0)
+- Implemented adaptive power-of-2 grid sizing — grid stays visible at all zoom levels
+- G key now toggles snap-to-grid; ADD_NODE snaps when snap is active
+- Shift+drag node snaps to nearest integer world unit
+- Middle-mouse button drag now pans in any mode
+
+**Support & Load Visualization:**
+- Redesigned support icons: proper structural symbols (pinned triangle, fixed bar, roller with wheels)
+- Roller direction now correct: X-axis (horizontal) shows left-pointing triangle with vertical wheels; Y-axis (vertical) shows down-pointing triangle with horizontal wheels
+- Distributed load rendering complete: arrows perpendicular to member, trapezoidal fill, w1/w2 labels
+
+**Data & UI:**
+- Steel profiles now eager-loaded in store init — visible on first visit to Workspace
+- LoadPanel load type now updates when activated with tool already selected (`{ immediate: true }` watch)
+- All canvas elements stay synchronized during node drag and state changes
+
+**Envelope Analysis & Capacity Graphs (Features 26–27):**
+- "⊛ Envelope" button in Workspace sidebar runs all LRFD combinations and finds worst-case demands per member
+- `solverStore.runEnvelopeAnalysis()` loops all combinations, calls `buildFactoredLoads()` + `runFemAnalysis()`, then `computeEnvelope()`
+- `performDesignCheckEnvelope()` in `designCheck.ts` runs full design check per combo, returns worst UR_combined + governing combo name
+- DesignAssessmentPanel has Active/Envelope toggle; envelope mode shows governing combo badge per row
+- Capacity Graph: Table/Graph tabs in AlternativesRow; Graph uses D3 bar chart with color zones (green/amber/red) per UR thresholds
+- **Vue template pattern:** `!` non-null assertion is invalid in Vue templates — wrap in a `requireX()` script function that uses `!` and call that in the template instead
+
+**Trapezoidal Distributed Load Bugs (Audit fixes):**
+- `loadVector.ts`: Fixed-end force formula used `wAvg` instead of `w1` as the uniform part → now `w1*L/2 + 3*dw*L/20` = `(7w1+3w2)L/20` (correct). UDL w1=w2 was unaffected.
+- `postProcessor.ts`: V/M station sampling used `w(xi)·x` (constant-w approximation) → now integrates correctly: `w1·x + dw·x²/(2L)` for V, `w1·x²/2 + dw·x³/(6L)` for M.
+
+**Testing:** 132 E2E tests + 320 unit tests (452 total) covering all above fixes
 
 ---
 

@@ -66,33 +66,37 @@ test.describe('Report view — static sections (no analysis)', () => {
     await expect(page.getByText(/Units: kN, m, MPa/)).toBeVisible()
   })
 
-  test('section 1: structure diagram placeholder shown when no snapshot', async ({ page }) => {
-    await expect(page.getByText('1. Structure Diagram')).toBeVisible()
+  test('section 8: structure diagram placeholder shown when no snapshot', async ({ page }) => {
+    await expect(page.getByText('8. Structure Diagram')).toBeVisible()
     await expect(page.getByText(/Run analysis on the Workspace/)).toBeVisible()
   })
 
-  test('section 2: structure summary', async ({ page }) => {
-    await expect(page.getByText('2. Structure Summary')).toBeVisible()
+  test('section 2: model summary', async ({ page }) => {
+    await expect(page.getByText('2. Model Summary')).toBeVisible()
   })
 
-  test('section 3: design criteria shows AISC 360 and φ values', async ({ page }) => {
-    await expect(page.getByText('3. Design Criteria')).toBeVisible()
+  test('section 1: design criteria shows AISC 360 and φ values', async ({ page }) => {
+    await expect(page.getByText('1. Design Criteria')).toBeVisible()
     await expect(page.getByText('AISC 360-10 (LRFD)')).toBeVisible()
     await expect(page.getByText('TIS 1228 (Thai Industrial Standard)')).toBeVisible()
   })
 
-  test('section 3: PASS/MARGINAL/FAIL thresholds come from settings (default 0.8 / 1)', async ({ page }) => {
+  test('section 1: PASS/MARGINAL/FAIL thresholds come from settings (default 0.8 / 1)', async ({ page }) => {
     // default urMarginal=0.8, urFail=1.0 — rendered in the table
     await expect(page.getByText(/UR < 0.8/)).toBeVisible()
     await expect(page.getByText(/UR ≥ 1/)).toBeVisible()
   })
 
-  test('section 4: nodes', async ({ page }) => {
-    await expect(page.getByText('4. Nodes')).toBeVisible()
+  test('section 3: nodes', async ({ page }) => {
+    await expect(page.getByText('3. Nodes')).toBeVisible()
   })
 
-  test('section 5: members', async ({ page }) => {
-    await expect(page.getByText('5. Members')).toBeVisible()
+  test('section 4: members', async ({ page }) => {
+    await expect(page.getByText('4. Members')).toBeVisible()
+  })
+
+  test('section 6: load combinations', async ({ page }) => {
+    await expect(page.getByText('6. Load Combinations')).toBeVisible()
   })
 
   test('section 7: applied loads', async ({ page }) => {
@@ -116,8 +120,8 @@ test.describe('Report view — post-analysis sections', () => {
     await page.waitForTimeout(500)
   })
 
-  test('section 1: structure diagram shows image after analysis', async ({ page }) => {
-    await expect(page.getByText('1. Structure Diagram')).toBeVisible()
+  test('section 8: structure diagram shows image after analysis', async ({ page }) => {
+    await expect(page.getByText('8. Structure Diagram')).toBeVisible()
     const img = page.locator('img[alt="Structure diagram"]')
     await expect(img).toBeVisible()
     const src = await img.getAttribute('src')
@@ -128,30 +132,30 @@ test.describe('Report view — post-analysis sections', () => {
     await expect(page.getByText(/members PASS/)).toBeVisible()
   })
 
-  test('section 6: steel profile parameters hidden when no profile assigned', async ({ page }) => {
+  test('section 5: steel profile parameters hidden when no profile assigned', async ({ page }) => {
     // No profile assigned in this simple test — section should be absent
-    await expect(page.getByText('6. Steel Profile Parameters')).not.toBeVisible()
+    await expect(page.getByText('5. Steel Profile Parameters')).not.toBeVisible()
   })
 
-  test('section 8: support reactions visible', async ({ page }) => {
-    await expect(page.getByText('8. Support Reactions')).toBeVisible()
+  test('section 9: support reactions visible', async ({ page }) => {
+    await expect(page.getByText('9. Support Reactions')).toBeVisible()
   })
 
-  test('section 9: nodal displacements visible with unit column header', async ({ page }) => {
-    await expect(page.getByText('9. Nodal Displacements')).toBeVisible()
+  test('section 10: nodal displacements visible with unit column header', async ({ page }) => {
+    await expect(page.getByText('10. Nodal Displacements')).toBeVisible()
     // Column header uses selected unit (default: m)
     await expect(page.getByText(/ux \(m\)/)).toBeVisible()
   })
 
-  test('section 10: member end forces uses member label not raw ID', async ({ page }) => {
-    await expect(page.getByText('10. Member End Forces')).toBeVisible()
+  test('section 11: member end forces uses member label not raw ID', async ({ page }) => {
+    await expect(page.getByText('11. Member End Forces')).toBeVisible()
     // Member label M1 should appear in the table, not a raw UUID slice
-    await expect(page.locator('section').filter({ hasText: '10. Member End Forces' })
+    await expect(page.locator('section').filter({ hasText: '11. Member End Forces' })
       .locator('td').filter({ hasText: 'M1' })).toBeVisible()
   })
 
-  test('section 11: design assessment (LRFD) visible with UR columns', async ({ page }) => {
-    await expect(page.getByText('11. Design Assessment')).toBeVisible()
+  test('section 12: design assessment (LRFD) visible with UR columns', async ({ page }) => {
+    await expect(page.getByText('12. Design Assessment')).toBeVisible()
     await expect(page.getByText(/UR.*axial|URaxial/i).first()).toBeVisible()
     await expect(page.getByText(/members pass/i).last()).toBeVisible()
   })

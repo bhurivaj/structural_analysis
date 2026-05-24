@@ -36,19 +36,23 @@ src/
 
 ## Current State
 
-**✅ Completed (24/24 features):**
+**✅ Completed (27/27 features):**
 
 1. **Interactive Canvas Workspace**
    - D3 draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
-   - Pan/zoom: scroll wheel, middle-mouse, Space+drag temporary pan
-   - Keyboard shortcuts (S, P, N, M, L, D, R, Delete, Ctrl+Z/Y)
+   - Pan/zoom: scroll wheel, middle-mouse (wheel click), Space+drag temporary pan
+   - Keyboard shortcuts (S, P, N, M, L, D, R, G=snap-toggle, Delete, Ctrl+Z/Y)
    - Undo/Redo with debounced snapshots (up to 50 entries)
    - Session persistence: auto-save to localStorage + resume dialog
-   - **Force labels now update when unit settings change**
-   - **Grid snap toggle** — snap new nodes to 80px grid (default on)
+   - **Force labels now update when unit settings change + deformed scale changes**
+   - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive grid (power-of-2 sizing) visible at all zoom levels
+   - **Shift+drag node** — snap to nearest grid position
    - **Editable node labels** — auto-assigned N1, N2, … with inline editing
    - **Truss validation** — moment loads prevented on truss structures with UX feedback
    - **Member label display on canvas** — shows member label + steel profile designation (e.g., "M1 / H 150×75") at midpoint, changes color when selected
+   - **Ghost line preview** — shows correct direction when drawing members or reconnecting endpoints
+   - **Origin marker** — crosshair at (0,0) visible on canvas
+   - **Fit-to-view button** — correctly centers structure and zooms to fit
 
 2. **FEM Solver**
    - 2D Frame + Truss analysis via matrix stiffness method
@@ -96,17 +100,36 @@ src/
    - Export button downloads current session as JSON
 
 8. **Testing**
-   - **99 E2E Playwright tests** across 12 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, bug-fix regressions
-   - **273 Vitest unit tests** covering solver, LRFD design checks, autoSize, and utility logic
+   - **132 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions
+   - **320 Vitest unit tests** covering solver, LRFD design checks, autoSize, steel profiles, load cases store, envelope analysis, trapezoidal distributed load correctness, and utility logic
+   - **Total: 452 tests passing** — comprehensive coverage of all features and edge cases
 
-9. **Bug Fixes**
-   - Cross-section SVG: H/I, C, L, RHS, CHS render correctly
-   - Undo/Redo timing fixed with `nextTick()`
-   - **Unit reflection: canvas force labels, moment conversions, load values all now reactive**
-   - **Multi-assign panel blocked by `multiSelectActive`:** `WorkspaceView` intercepted member-only multi-select and showed the generic "Selection" panel instead of MemberPanel. Fixed: condition now excludes `nodeCount === 0 && memberCount > 1`.
-   - **Resume dialog re-shown on navigation-back:** `onMounted` guard now checks `structure.nodes.length === 0` so dialog only shows on a truly fresh start, not every WorkspaceView mount.
-   - **Analysis profile changes lost on workspace nav:** Profile assignments made in DesignAssessmentPanel weren't persisted (auto-save watcher only runs in WorkspaceView). Fixed: `applyProfile()` and `autoSizeAll()` now call `cache.saveSession()` explicitly.
-   - **UR mismatch between main table and sub-table:** TIS steel data stores `ry: 0` for all profiles. `autoSize.ts`'s `profileToSection()` was using `profile.ry` directly (= 0), skipping column buckling. Fixed: `ry = profile.Iy > 0 ? sqrt(Iy/A) : 0` — consistent with `designCheck.ts`.
+9. **Bug Fixes & Canvas Improvements (Recent Wave)**
+   - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
+   - **Undo/Redo timing:** Fixed with `nextTick()` to prevent race conditions
+   - **Unit reflection:** Canvas force labels, moment conversions, load values all reactive to unit changes
+   - **Multi-assign panel logic:** Fixed `multiSelectActive` condition to correctly exclude member-only multi-select
+   - **Resume dialog:** Fixed re-appearance on navigation-back by checking `structure.nodes.length === 0`
+   - **Analysis profile persistence:** Profile assignments now saved explicitly via `cache.saveSession()` when modified in DesignAssessmentPanel
+   - **Column buckling UR mismatch:** Fixed `autoSize.ts` to derive `ry = sqrt(Iy/A)` instead of using `profile.ry = 0`
+   - **Trapezoidal distributed load fixed-end forces (Bug):** `loadVector.ts` used `wAvg=(w1+w2)/2` instead of `w1` as the uniform part in superposition — fixed to `w1*L/2 + 3*dw*L/20` giving correct `(7w1+3w2)L/20` formula
+   - **Trapezoidal distributed load V/M stations (Bug):** `postProcessor.ts` used `w(xi)·x` to approximate load integral — replaced with correct integrals `w1·x + dw·x²/(2L)` for V and `w1·x²/2 + dw·x³/(6L)` for M; UDL (w1=w2) was unaffected
+   - **Ghost line direction (Y-axis):** Fixed SVG Y-coordinate negation in member/endpoint ghost lines (lines 374, 411)
+   - **Fit-to-view button:** Corrected viewport calculation using actual `clientWidth/Height` and proper Y-coordinate formula
+   - **Canvas origin at startup:** Set initial viewport so world (0,0) centers at screen center (line 643)
+   - **Grid disappears on zoom-in:** Implemented adaptive power-of-2 grid sizing (lines 107–131) — grid now always visible
+   - **Origin marker crosshair:** Added visual indicator at world (0,0) with accent-colored lines
+   - **G key snap toggle:** Wired G key to `toggleSnap()` in `handleKeyDown` and snap logic to `ADD_NODE` handler
+   - **Shift+drag node snap:** Nodes snap to nearest integer world unit when held Shift during drag (line 617–620)
+   - **Middle-mouse pan:** Added support for middle-button drag in any mode (using `event.buttons & 4` check, line 625)
+   - **Steel profiles lazy-load issue:** Profiles now eager-loaded in store init; visible on Workspace without visiting SteelProfileView first
+   - **Distributed load rendering:** Implemented full visualization with perpendicular arrows, trapezoidal fill, baseline, and w1/w2 labels
+   - **Support icons redesign:** Updated to proper structural engineering symbols:
+     - **Pinned:** Triangle pointing down + base line + diagonal hatch marks
+     - **Fixed:** Horizontal bar + diagonal hatch marks (representing wall below)
+     - **Roller:** Triangle + two circles for wheels; direction-aware (X-axis: points left, wheels vertical; Y-axis: points down, wheels horizontal)
+   - **Roller direction (axis X vs Y):** Separated rendering logic so horizontal roller (constrained in X) displays correctly with left-pointing triangle and vertically-stacked wheels
+   - **LoadPanel type auto-update:** Fixed watch on `activeTool` with `{ immediate: true }` so load type is set when panel mounts after tool already active
 
 10. **Session Management**
     - Auto-save 800ms after changes
@@ -185,6 +208,15 @@ src/
     - **Design check** — tension-only members: check only tensile axial stress (UR = T / φPn), skip bending/shear/compression checks
     - **Supports cable/sling/hanger rods/diagonal braces** in structures (e.g., cable-stayed, suspended bridges)
 
+21. **Endpoint Reconnect (Member Drag)**
+    - **CAD-style endpoint handles** — selecting a single member in SELECT mode shows two white/blue circle handles at each endpoint
+    - **Drag to reconnect** — drag either handle to a different node to change `startNodeId`/`endNodeId` via `structure.updateMember()`
+    - **Live snap** — nearest node within 20 screen px highlighted with blue ring; member reconnects on mouse-up
+    - **Ghost line** — dashed blue line from fixed end to cursor during drag (same style as ADD_MEMBER preview)
+    - **No-snap cancel** — releasing in empty space leaves member unchanged
+    - **Full undo/redo** — changes captured by existing debounced watcher automatically
+    - **Layer**: `#endpoint-layer` SVG group on top of all canvas layers; handled by `drawEndpointHandles()` in `StructureCanvas.vue`
+
 22. **Multi-assign Steel Profiles (Bulk)**
     - When 2+ members are selected in Workspace, MemberPanel shows bulk-assign UI
     - Profile dropdown + "Apply to N Members" button applies same profile to all selected
@@ -197,6 +229,16 @@ src/
     - Updates member section properties; re-run analysis to verify results
     - Count of changes shown in status message
 
+25. **Combined Load Cases (LRFD)**
+    - **Load categories** — every load tagged as Dead (D), Live (L), Wind (W), Seismic (E), or Snow (S)
+    - **Load combinations** — 5 pre-defined AISC LRFD presets (Service 1.0D+1.0L, 1.4D, 1.2D+1.6L, 1.2D+1.0W+1.0L, 0.9D+1.0W) + user-defined custom combos
+    - **Active combination** — user picks one combination; solver applies factors (`buildFactoredLoads`) before running FEM
+    - **UI** — "Combo" tab in right panel (`LoadCombinationPanel.vue`); active combo name badge above Run button; case badge on each load in load list
+    - **Analysis banner** — shows combination name used for current results
+    - **Report** — Section 7: Load Combinations table; Section 8: Applied Loads with Case column
+    - **Persistence** — custom combos + active selection saved to `structcalc_load_cases` localStorage key
+    - **Backward compat** — existing loads without `loadCase` default to Dead (D)
+
 24. **Live Section Modifier (Alternatives Table)**
     - Each row in DesignAssessmentPanel has a "▼" toggle button
     - Expands AlternativesRow sub-panel showing alternative profiles from same class (sorted by mass)
@@ -204,31 +246,25 @@ src/
     - "Apply" button swaps profile immediately (updates member section, no re-analysis needed)
     - Powered by `autoSize.ts`: `getAlternatives()` and `findOptimalProfile()`
 
-21. **Endpoint Reconnect (Member Drag)**
-    - **CAD-style endpoint handles** — selecting a single member in SELECT mode shows two white/blue circle handles at each endpoint
-    - **Drag to reconnect** — drag either handle to a different node to change `startNodeId`/`endNodeId` via `structure.updateMember()`
-    - **Live snap** — nearest node within 20 screen px highlighted with blue ring; member reconnects on mouse-up
-    - **Ghost line** — dashed blue line from fixed end to cursor during drag (same style as ADD_MEMBER preview)
-    - **No-snap cancel** — releasing in empty space leaves member unchanged
-    - **Full undo/redo** — changes captured by existing debounced watcher automatically
-    - **Layer**: `#endpoint-layer` SVG group on top of all canvas layers; handled by `drawEndpointHandles()` in `StructureCanvas.vue`
-
 ---
 
 ## Data Contract
 
 **Internal Units (always stored as):**
+
 - Force: kN
 - Length: m
 - Stress: MPa
 - Moments: kN·m
 
 **Data Flow:**
+
 1. **User Input** (canvas tools, panels) → convert via `fromLength()`, `fromForce()` → store in internal units
 2. **Storage** (Pinia stores) → always kN/m/MPa
 3. **Display** (tables, report, diagrams) → convert via `toLength()`, `toForce()`, `toStress()` using `settingsStore.unitLabel`
 
 **Key Types** (in `src/types/`):
+
 - `StructureNode`: { id, x, y, support, rollerAxis?, label }
 - `Member`: { id, startNodeId, endNodeId, steelProfileId, E, A, I, isTruss, tensionOnly?, label? }
 - `Load`: PointLoad | DistributedLoad | MomentLoad
@@ -236,6 +272,7 @@ src/
 - `SolverResult`: { success, nodeResults, reactions, memberResults }
 
 **Settings Store State:**
+
 ```ts
 {
   projectName, engineerName,
@@ -247,19 +284,61 @@ src/
 ```
 
 **LocalStorage Keys:**
+
 - `structcalc_session` — node/member/load snapshots + structure type
 - `structcalc_settings` — unit choices, project info, defaults
 
 ---
 
+26. **Envelope Analysis**
+    - **"⊛ Envelope" button** in Workspace sidebar — runs FEM for all load combinations in one pass
+    - **Force tracking per member:** max tension N, max compression N (tracked separately), max |V|, max |M| across all combos
+    - **`performDesignCheckEnvelope()`** — runs per-combo design checks, returns worst-case UR_combined with governing combo name
+    - **Design Assessment toggle:** "Active" / "Envelope" button group (shown only when envelope has been run)
+    - **Governing combo badge** per member row when in Envelope mode — indigo badge shows which combination governed
+    - **Auto-size All** works in envelope mode — uses envelope forces for `findOptimalProfile()`
+    - **AlternativesRow** uses worst-case envelope forces when in envelope mode
+    - Analysis page shows indigo banner with number of combinations analyzed
+
+27. **Capacity Graphs**
+    - **Table/Graph tabs** in each member's AlternativesRow
+    - **D3 bar chart** plotting UR_combined vs alternative profiles, sorted by mass
+    - **Color zones:** green (PASS < urMarginal), amber (MARGINAL), red (FAIL ≥ urFail)
+    - **Threshold lines:** dashed lines at urMarginal and urFail thresholds
+    - **Current profile highlighted** with indigo fill and border
+    - Powered by existing `getAlternatives()` data — no extra network calls
+
+---
+
+## Gap Analysis
+
+Known limitations and missing functionality compared to a full-featured structural analysis tool.
+
+### Point Loads
+
+| # | Gap | Detail |
+|---|-----|--------|
+| 1 | **Cartesian input only** | UI accepts Fx/Fy components — no polar input (magnitude + angle). Inclined loads require manual decomposition. |
+| 2 | ~~**No load cases / combinations**~~ | ✅ **Resolved** — loads tagged D/L/W/E/S; solver applies AISC LRFD factors from active combination. |
+| 3 | **Label only settable after creation** | `LoadPanel.vue` shows the label field only in edit mode (`v-if="editingLoadId"`). Must create first, then click to rename. |
+| 4 | **Canvas shows resultant magnitude only** | Arrow label = `|F|` resultant. No visual breakdown of Fx/Fy components on canvas. |
+| 5 | **Multiple loads on same node render as separate arrows** | Solver sums correctly, but canvas draws one arrow per load entry — visually cluttered when stacked. |
+| 6 | **2D only (no Fz)** | `PointLoad` type has only `fx`, `fy`. No out-of-plane force component. |
+| 7 | **No self-weight generation** | No auto-load from member section + material density. All loads must be entered manually. |
+
+---
+
 ## Next Steps (Optional Enhancements)
 
-1. **Combined load cases** — support multiple load scenarios with enveloping
-2. **Capacity graphs** — plot utilization vs. member section improvements
+1. ~~**Envelope analysis**~~ — ✅ Implemented (feature 26)
+2. ~~**Capacity graphs**~~ — ✅ Implemented (feature 27)
+3. **Envelope N/V/M diagrams** — plot min/max force diagram bands across all combinations (visual overlay on DiagramPanel)
+4. **Self-weight generation** — auto-compute dead load from member length × profile mass/m × gravity
 
 ---
 
 **To run locally:**
+
 ```bash
 docker compose up              # Start dev server
 npm run test:e2e              # Run e2e tests

@@ -5,6 +5,10 @@ import { useStructureStore } from '@/stores/structureStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useCanvasTool } from '@/composables/useCanvasTool'
 import NumberInput from '@/components/ui/NumberInput.vue'
+import type { LoadCaseCategory } from '@/types/loadCases'
+
+const CASE_LABELS: Record<LoadCaseCategory, string> = { D: 'Dead (D)', L: 'Live (L)', W: 'Wind (W)', E: 'Seismic (E)', S: 'Snow (S)' }
+const CASE_COLORS: Record<LoadCaseCategory, string> = { D: 'bg-slate-200 text-slate-700', L: 'bg-blue-100 text-blue-700', W: 'bg-sky-100 text-sky-700', E: 'bg-red-100 text-red-700', S: 'bg-violet-100 text-violet-700' }
 
 const loads = useLoadsStore()
 const structure = useStructureStore()
@@ -21,6 +25,7 @@ const w1 = ref(-10)
 const w2 = ref(-10)
 const direction = ref<'local_y' | 'global_y'>('global_y')
 const loadLabel = ref('')
+const loadCase = ref<LoadCaseCategory>('D')
 
 const selectedNodeId = computed(() => structure.selectedNodeIds[0] ?? '')
 const selectedMemberId = computed(() => structure.selectedMemberIds[0] ?? '')
@@ -58,16 +63,19 @@ watch(editingLoadId, (id) => {
     targetNodeId.value = load.nodeId
     fx.value = settings.toForce(load.fx)
     fy.value = settings.toForce(load.fy)
+    loadCase.value = load.loadCase ?? 'D'
   } else if (load.type === 'distributed_load') {
     loadType.value = 'distributed_load'
     targetMemberId.value = load.memberId
     w1.value = settings.toForce(load.w1)
     w2.value = settings.toForce(load.w2)
     direction.value = load.direction
+    loadCase.value = load.loadCase ?? 'D'
   } else {
     loadType.value = 'moment'
     targetNodeId.value = load.nodeId
     mz.value = settings.toForce(load.mz)
+    loadCase.value = load.loadCase ?? 'D'
   }
 })
 
@@ -76,11 +84,11 @@ function addLoad() {
     const id = editingLoadId.value
     const labelData = loadLabel.value ? { label: loadLabel.value } : {}
     if (loadType.value === 'point_load') {
-      loads.updateLoad(id, { fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), ...labelData })
+      loads.updateLoad(id, { fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), loadCase: loadCase.value, ...labelData })
     } else if (loadType.value === 'distributed_load') {
-      loads.updateLoad(id, { w1: settings.fromForce(w1.value), w2: settings.fromForce(w2.value), direction: direction.value, ...labelData })
+      loads.updateLoad(id, { w1: settings.fromForce(w1.value), w2: settings.fromForce(w2.value), direction: direction.value, loadCase: loadCase.value, ...labelData })
     } else {
-      loads.updateLoad(id, { mz: settings.fromForce(mz.value), ...labelData })
+      loads.updateLoad(id, { mz: settings.fromForce(mz.value), loadCase: loadCase.value, ...labelData })
     }
     setEditingLoad(null)
     return
@@ -88,15 +96,15 @@ function addLoad() {
   if (loadType.value === 'point_load') {
     const nodeId = targetNodeId.value || selectedNodeId.value
     if (!nodeId) return
-    loads.addPointLoad({ nodeId, fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value) })
+    loads.addPointLoad({ nodeId, fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), loadCase: loadCase.value })
   } else if (loadType.value === 'distributed_load') {
     const memberId = targetMemberId.value || selectedMemberId.value
     if (!memberId) return
-    loads.addDistributedLoad({ memberId, w1: settings.fromForce(w1.value), w2: settings.fromForce(w2.value), direction: direction.value })
+    loads.addDistributedLoad({ memberId, w1: settings.fromForce(w1.value), w2: settings.fromForce(w2.value), direction: direction.value, loadCase: loadCase.value })
   } else {
     const nodeId = targetNodeId.value || selectedNodeId.value
     if (!nodeId) return
-    loads.addMomentLoad({ nodeId, mz: settings.fromForce(mz.value) })
+    loads.addMomentLoad({ nodeId, mz: settings.fromForce(mz.value), loadCase: loadCase.value })
   }
 }
 
@@ -178,6 +186,13 @@ function cancelEdit() {
       <NumberInput :label="`Mz (+ CCW)`" :unit="settings.momentLabel" :step="1" :model-value="mz" @update:model-value="v => mz = v" />
     </template>
 
+    <label class="flex flex-col gap-0.5">
+      <span class="text-xs text-slate-500">Load Case</span>
+      <select v-model="loadCase" class="px-2 py-1 text-sm border border-slate-300 rounded">
+        <option v-for="(label, key) in CASE_LABELS" :key="key" :value="key">{{ label }}</option>
+      </select>
+    </label>
+
     <div class="flex gap-2">
       <button
         class="flex-1 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -202,8 +217,14 @@ function cancelEdit() {
         :class="editingLoadId === load.id ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50 hover:bg-slate-100'"
         @click="startEdit(load.id)"
       >
-        <span>{{ (load as any).label ?? (load.type === 'point_load' ? `PL @ ${(load as any).nodeId.slice(0, 4)}` : load.type === 'distributed_load' ? `DL @ ${(load as any).memberId?.slice(0, 4)}` : `ML @ ${(load as any).nodeId?.slice(0, 4)}`) }}</span>
-        <button class="text-red-500 hover:text-red-700" @click.stop="loads.deleteLoad(load.id)">×</button>
+        <span class="flex items-center gap-1.5 min-w-0">
+          <span
+            class="shrink-0 px-1 rounded text-[10px] font-bold leading-4"
+            :class="CASE_COLORS[(load as any).loadCase ?? 'D']"
+          >{{ (load as any).loadCase ?? 'D' }}</span>
+          <span class="truncate">{{ (load as any).label ?? (load.type === 'point_load' ? `PL @ ${(load as any).nodeId.slice(0, 4)}` : load.type === 'distributed_load' ? `DL @ ${(load as any).memberId?.slice(0, 4)}` : `ML @ ${(load as any).nodeId?.slice(0, 4)}`) }}</span>
+        </span>
+        <button class="text-red-500 hover:text-red-700 shrink-0" @click.stop="loads.deleteLoad(load.id)">×</button>
       </div>
     </div>
   </div>

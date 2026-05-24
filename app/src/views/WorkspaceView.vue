@@ -5,9 +5,12 @@ import CanvasToolbar from '@/components/canvas/CanvasToolbar.vue'
 import NodePanel from '@/components/panels/NodePanel.vue'
 import MemberPanel from '@/components/panels/MemberPanel.vue'
 import LoadPanel from '@/components/panels/LoadPanel.vue'
+import LoadCombinationPanel from '@/components/panels/LoadCombinationPanel.vue'
+import ResumeSessionDialog from '@/components/ui/ResumeSessionDialog.vue'
 import { useStructureStore } from '@/stores/structureStore'
 import { useLoadsStore } from '@/stores/loadsStore'
 import { useSolverStore } from '@/stores/solverStore'
+import { useLoadCasesStore } from '@/stores/loadCasesStore'
 import { useCanvasViewport } from '@/composables/useCanvasViewport'
 import { useSessionCache, type SessionSnapshot } from '@/composables/useSessionCache'
 import { useUndoRedo } from '@/composables/useUndoRedo'
@@ -17,13 +20,14 @@ import type { StructureType } from '@/types/structure'
 const structure = useStructureStore()
 const loads = useLoadsStore()
 const solver = useSolverStore()
+const loadCases = useLoadCasesStore()
 const { viewport } = useCanvasViewport()
 const cache = useSessionCache()
 
 const { canUndo, canRedo, undo, redo } = useUndoRedo()
 
 const canvasRef = ref<InstanceType<typeof StructureCanvas> | null>(null)
-const rightTab = ref<'node' | 'member' | 'load'>('node')
+const rightTab = ref<'node' | 'member' | 'load' | 'combo'>('node')
 const showResumeDialog = ref(false)
 const savedSession = ref<SessionSnapshot | null>(null)
 const trussWarning = ref('')
@@ -123,36 +127,13 @@ watch(() => solver.result, (res) => {
 </script>
 
 <template>
-  <!-- Session restore dialog -->
-  <Teleport to="body">
-    <div
-      v-if="showResumeDialog"
-      class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-    >
-      <div class="bg-white rounded-xl shadow-2xl p-6 w-80">
-        <h2 class="text-sm font-semibold text-slate-800 mb-1">Resume Previous Work?</h2>
-        <p class="text-xs text-slate-500 mb-4">
-          {{ savedSession?.nodes.length }} nodes · {{ savedSession?.members.length }} members · {{ savedSession?.loads.length }} loads
-          <br>
-          <span class="text-slate-400">Saved {{ savedSession ? formatSavedAt(savedSession.savedAt) : '' }}</span>
-        </p>
-        <div class="flex gap-2">
-          <button
-            class="flex-1 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            @click="handleResume"
-          >
-            Continue
-          </button>
-          <button
-            class="flex-1 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-            @click="handleStartNew"
-          >
-            Start New
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
+  <ResumeSessionDialog
+    v-if="showResumeDialog"
+    :session="savedSession"
+    :saved-at="savedSession ? formatSavedAt(savedSession.savedAt) : ''"
+    @resume="handleResume"
+    @start-new="handleStartNew"
+  />
 
   <div class="flex h-full overflow-hidden">
     <!-- Left: toolbar -->
@@ -195,6 +176,9 @@ watch(() => solver.result, (res) => {
         >
           ⊡ Fit
         </button>
+        <div class="text-[10px] text-slate-400 text-center truncate px-1" :title="loadCases.activeCombination.name">
+          {{ loadCases.activeCombination.name }}
+        </div>
         <button
           class="w-full py-1.5 text-xs font-medium rounded transition-colors"
           :class="solver.isRunning ? 'bg-slate-400 text-white cursor-wait' : 'bg-green-600 text-white hover:bg-green-700'"
@@ -202,6 +186,15 @@ watch(() => solver.result, (res) => {
           @click="solver.runAnalysis()"
         >
           {{ solver.isRunning ? 'Solving…' : '▶ Run' }}
+        </button>
+        <button
+          class="w-full py-1 text-xs font-medium rounded transition-colors"
+          :class="solver.isRunningEnvelope ? 'bg-slate-400 text-white cursor-wait' : 'bg-indigo-500 text-white hover:bg-indigo-600'"
+          :disabled="solver.isRunningEnvelope || solver.isRunning"
+          @click="solver.runEnvelopeAnalysis()"
+          title="Run all load combinations and find governing demands"
+        >
+          {{ solver.isRunningEnvelope ? 'Envelope…' : '⊛ Envelope' }}
         </button>
         <button
           class="w-full py-1 text-xs bg-slate-200 text-slate-700 rounded hover:bg-slate-300"
@@ -265,7 +258,7 @@ watch(() => solver.result, (res) => {
     <div class="w-56 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
       <div class="flex border-b border-slate-200 shrink-0">
         <button
-          v-for="tab in [['node','Node'],['member','Member'],['load','Load']] as const"
+          v-for="tab in [['node','Node'],['member','Member'],['load','Load'],['combo','Combo']] as const"
           :key="tab[0]"
           class="flex-1 py-1.5 text-xs transition-colors"
           :class="rightTab === tab[0] ? 'bg-white border-b-2 border-blue-600 text-blue-600' : 'bg-slate-50 text-slate-500 hover:text-slate-700'"
@@ -273,7 +266,7 @@ watch(() => solver.result, (res) => {
         >{{ tab[1] }}</button>
       </div>
       <div class="flex-1 overflow-y-auto">
-        <div v-if="multiSelectActive" class="p-3 space-y-3">
+        <div v-if="multiSelectActive && rightTab !== 'combo'" class="p-3 space-y-3">
           <div class="font-medium text-sm text-slate-700">Selection</div>
           <div class="text-xs text-slate-500 space-y-0.5">
             <div v-if="structure.selectedNodeIds.length">{{ structure.selectedNodeIds.length }} node(s)</div>
@@ -295,6 +288,7 @@ watch(() => solver.result, (res) => {
         <template v-else>
           <NodePanel v-if="rightTab === 'node'" />
           <MemberPanel v-else-if="rightTab === 'member'" />
+          <LoadCombinationPanel v-else-if="rightTab === 'combo'" />
           <LoadPanel v-else />
         </template>
       </div>

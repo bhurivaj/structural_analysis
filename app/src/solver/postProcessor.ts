@@ -125,9 +125,10 @@ export function computeMemberResults(
       let m = M1 + V1 * x
 
       for (const dl of distLoads) {
-        const w = dl.w1 + (dl.w2 - dl.w1) * xi
-        v -= w * x
-        m -= w * x * x / 2
+        // ∫₀ˣ [w1 + (w2-w1)·ξ/L] dξ = w1·x + (w2-w1)·x²/(2L)
+        const ddw = dl.w2 - dl.w1
+        v -= dl.w1 * x + ddw * x * x / (2 * L)
+        m -= dl.w1 * x * x / 2 + ddw * x * x * x / (6 * L)
       }
 
       N.push(n)

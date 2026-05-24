@@ -1,5 +1,6 @@
 import { useStructureStore } from '@/stores/structureStore'
 import { useLoadsStore } from '@/stores/loadsStore'
+import { useLoadCasesStore } from '@/stores/loadCasesStore'
 import type { StructureNode, Member, StructureType } from '@/types/structure'
 import type { Load } from '@/types/loads'
 
@@ -29,6 +30,7 @@ export function useSessionCache() {
   function saveSession() {
     const structure = useStructureStore()
     const loads = useLoadsStore()
+    const loadCases = useLoadCasesStore()
     try {
       const snapshot: SessionSnapshot = {
         nodes: structure.nodes,
@@ -38,6 +40,7 @@ export function useSessionCache() {
         savedAt: new Date().toISOString(),
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+      loadCases.save()
     } catch {
       // localStorage unavailable (e.g. private browsing with full storage)
     }
@@ -48,12 +51,14 @@ export function useSessionCache() {
     if (!snapshot) return
     const structure = useStructureStore()
     const loads = useLoadsStore()
+    const loadCases = useLoadCasesStore()
     structure.loadSnapshot({
       nodes: snapshot.nodes,
       members: snapshot.members,
       structureType: snapshot.structureType,
     })
     loads.loadSnapshot(snapshot.loads)
+    loadCases.load()
   }
 
   function clearSavedSession() {

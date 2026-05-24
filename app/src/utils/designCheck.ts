@@ -1,5 +1,5 @@
 import type { Member, StructureNode } from '@/types/structure'
-import type { MemberResult } from '@/types/solver'
+import type { MemberResult, PerComboResult } from '@/types/solver'
 import type { SteelProfile } from '@/types/steel'
 
 export interface DesignCheckResult {
@@ -13,6 +13,10 @@ export interface DesignCheckResult {
   UR_combined: number
   status: 'PASS' | 'MARGINAL' | 'FAIL'
   suggestion: string
+}
+
+export interface EnvelopeDesignCheckResult extends DesignCheckResult {
+  governingCombo: string
 }
 
 export interface URSectionProps {
@@ -208,6 +212,41 @@ export function performDesignCheck(
   }
 
   return results
+}
+
+export function performDesignCheckEnvelope(
+  perComboResults: PerComboResult[],
+  members: Map<string, Member>,
+  nodes: Map<string, StructureNode>,
+  steelProfiles: Map<string, SteelProfile>,
+  defaultFy: number,
+  urMarginalThreshold = 0.8,
+  urFailThreshold = 1.0,
+): EnvelopeDesignCheckResult[] {
+  const worstPerMember = new Map<string, { result: DesignCheckResult; comboName: string }>()
+
+  for (const { comboName, memberResults } of perComboResults) {
+    const results = performDesignCheck(
+      memberResults,
+      members,
+      nodes,
+      steelProfiles,
+      defaultFy,
+      urMarginalThreshold,
+      urFailThreshold,
+    )
+    for (const r of results) {
+      const current = worstPerMember.get(r.memberId)
+      if (!current || r.UR_combined > current.result.UR_combined) {
+        worstPerMember.set(r.memberId, { result: r, comboName })
+      }
+    }
+  }
+
+  return [...worstPerMember.values()].map(({ result, comboName }) => ({
+    ...result,
+    governingCombo: comboName,
+  }))
 }
 
 function getSuggestion(

@@ -2,6 +2,7 @@
 import { useSolverStore } from '@/stores/solverStore'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useLoadCasesStore } from '@/stores/loadCasesStore'
 import ReactionTable from '@/components/analysis/ReactionTable.vue'
 import DisplacementTable from '@/components/analysis/DisplacementTable.vue'
 import DiagramPanel from '@/components/analysis/DiagramPanel.vue'
@@ -10,6 +11,7 @@ import DesignAssessmentPanel from '@/components/analysis/DesignAssessmentPanel.v
 const solver = useSolverStore()
 const structure = useStructureStore()
 const settings = useSettingsStore()
+const loadCases = useLoadCasesStore()
 
 function memberName(id: string) {
   const m = structure.memberById(id)
@@ -24,6 +26,20 @@ function memberName(id: string) {
     </div>
 
     <template v-else-if="solver.result.success">
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-1.5 text-xs text-blue-700">
+          <span class="font-medium">Load combination:</span>
+          <span>{{ solver.lastCombinationName || loadCases.activeCombination.name }}</span>
+        </div>
+        <div
+          v-if="solver.envelopeResult?.success"
+          class="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded px-3 py-1.5 text-xs text-indigo-700"
+        >
+          <span class="font-medium">⊛ Envelope:</span>
+          <span>{{ Object.keys(solver.envelopeResult.combinationNames).length }} combinations analyzed</span>
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 gap-6">
         <ReactionTable />
         <DisplacementTable />

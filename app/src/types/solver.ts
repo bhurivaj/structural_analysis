@@ -29,3 +29,30 @@ export interface SolverResult {
   memberResults: MemberResult[]
   timestamp: number
 }
+
+export interface MemberEnvelope {
+  memberId: string
+  maxTensionN: number
+  maxTensionN_combo: string
+  maxCompressionN: number
+  maxCompressionN_combo: string
+  maxAbsV: number
+  maxAbsV_combo: string
+  maxAbsM: number
+  maxAbsM_combo: string
+}
+
+export interface PerComboResult {
+  comboId: string
+  comboName: string
+  memberResults: MemberResult[]
+}
+
+export interface EnvelopeResult {
+  success: boolean
+  error?: string
+  envelopes: MemberEnvelope[]
+  perComboResults: PerComboResult[]
+  combinationNames: Record<string, string>
+  timestamp: number
+}
