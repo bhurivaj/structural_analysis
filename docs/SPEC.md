@@ -101,8 +101,9 @@ src/
 
 8. **Testing**
    - **132 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions
-   - **320 Vitest unit tests** covering solver, LRFD design checks, autoSize, steel profiles, load cases store, envelope analysis, trapezoidal distributed load correctness, and utility logic
-   - **Total: 452 tests passing** — comprehensive coverage of all features and edge cases
+   - **372 Vitest unit tests** across 22 test files covering solver, LRFD design checks, autoSize, steel profiles, load cases store, envelope analysis, trapezoidal distributed load, utility logic, **settingsStore unit conversions**, **useUndoRedo stack behavior**, **loadsStore remove-by-node/member branches**, **getSuggestion FAIL branches in designCheck**
+   - Coverage: **97.97% statements | 86.5% branches | 97.56% functions** (up from 96.75% / 80.8% / 94.97%)
+   - **Total: 504 tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly

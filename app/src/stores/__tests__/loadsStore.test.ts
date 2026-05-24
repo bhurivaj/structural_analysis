@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLoadsStore } from '@/stores/loadsStore'
+import { useStructureStore } from '@/stores/structureStore'
 
 describe('loadsStore', () => {
   beforeEach(() => {
@@ -201,6 +202,111 @@ describe('loadsStore', () => {
       store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
       store.loadSnapshot([])
       expect(store.loads).toEqual([])
+    })
+  })
+
+  // ── removeLoadsForNode ────────────────────────────────────────────────────────
+  describe('removeLoadsForNode', () => {
+    it('removes point and moment loads for the given node', () => {
+      const store = useLoadsStore()
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      store.addMomentLoad({ nodeId: 'N1', mz: 5 })
+      store.removeLoadsForNode('N1')
+      expect(store.loads).toEqual([])
+    })
+
+    it('keeps loads that belong to other nodes', () => {
+      const store = useLoadsStore()
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      store.addPointLoad({ nodeId: 'N2', fx: 2, fy: 0 })
+      store.removeLoadsForNode('N1')
+      expect(store.loads.length).toBe(1)
+      expect((store.loads[0] as import('@/types/loads').PointLoad).nodeId).toBe('N2')
+    })
+
+    it('keeps distributed loads (they belong to members, not nodes)', () => {
+      const store = useLoadsStore()
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      store.addDistributedLoad({ memberId: 'M1', w1: 5, w2: 5, direction: 'local_y' })
+      store.removeLoadsForNode('N1')
+      expect(store.loads.length).toBe(1)
+      expect(store.loads[0].type).toBe('distributed_load')
+    })
+
+    it('is a no-op when node has no loads', () => {
+      const store = useLoadsStore()
+      store.addPointLoad({ nodeId: 'N2', fx: 3, fy: 0 })
+      store.removeLoadsForNode('N99')
+      expect(store.loads.length).toBe(1)
+    })
+  })
+
+  // ── removeLoadsForMember ──────────────────────────────────────────────────────
+  describe('removeLoadsForMember', () => {
+    it('removes distributed loads for the given member', () => {
+      const store = useLoadsStore()
+      store.addDistributedLoad({ memberId: 'M1', w1: 10, w2: 10, direction: 'local_y' })
+      store.removeLoadsForMember('M1')
+      expect(store.loads).toEqual([])
+    })
+
+    it('keeps distributed loads for other members', () => {
+      const store = useLoadsStore()
+      store.addDistributedLoad({ memberId: 'M1', w1: 10, w2: 10, direction: 'local_y' })
+      store.addDistributedLoad({ memberId: 'M2', w1: 5, w2: 5, direction: 'global_y' })
+      store.removeLoadsForMember('M1')
+      expect(store.loads.length).toBe(1)
+      expect((store.loads[0] as import('@/types/loads').DistributedLoad).memberId).toBe('M2')
+    })
+
+    it('keeps point and moment loads (they are node-based, not member-based)', () => {
+      const store = useLoadsStore()
+      store.addDistributedLoad({ memberId: 'M1', w1: 5, w2: 5, direction: 'local_y' })
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      store.removeLoadsForMember('M1')
+      expect(store.loads.length).toBe(1)
+      expect(store.loads[0].type).toBe('point_load')
+    })
+
+    it('is a no-op when member has no distributed loads', () => {
+      const store = useLoadsStore()
+      store.addDistributedLoad({ memberId: 'M2', w1: 3, w2: 3, direction: 'local_y' })
+      store.removeLoadsForMember('M99')
+      expect(store.loads.length).toBe(1)
+    })
+  })
+
+  // ── removeMomentLoads ─────────────────────────────────────────────────────────
+  describe('removeMomentLoads', () => {
+    it('removes all moment loads and returns the count removed', () => {
+      const store = useLoadsStore()
+      store.addMomentLoad({ nodeId: 'N1', mz: 10 })
+      store.addMomentLoad({ nodeId: 'N2', mz: 20 })
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      const removed = store.removeMomentLoads()
+      expect(removed).toBe(2)
+      expect(store.momentLoads.length).toBe(0)
+      expect(store.pointLoads.length).toBe(1)
+    })
+
+    it('returns 0 when there are no moment loads', () => {
+      const store = useLoadsStore()
+      store.addPointLoad({ nodeId: 'N1', fx: 1, fy: 0 })
+      const removed = store.removeMomentLoads()
+      expect(removed).toBe(0)
+    })
+  })
+
+  // ── addMomentLoad on truss ────────────────────────────────────────────────────
+  describe('addMomentLoad — truss guard', () => {
+    it('returns null and does not add load when structure is a truss', () => {
+      const structure = useStructureStore()
+      structure.setStructureType('truss')
+
+      const store = useLoadsStore()
+      const result = store.addMomentLoad({ nodeId: 'N1', mz: 50 })
+      expect(result).toBeNull()
+      expect(store.momentLoads.length).toBe(0)
     })
   })
 })
