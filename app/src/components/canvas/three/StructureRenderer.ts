@@ -13,6 +13,10 @@ export class StructureRenderer {
   private nodePoints: THREE.Points | null = null
   private memberLines: THREE.LineSegments | null = null
   private deformedLines: THREE.LineSegments | null = null
+  private ghostLine: THREE.Line | null = null
+  private epHandles: THREE.Points | null = null
+  private epGhost: THREE.Line | null = null
+  private snapRing: THREE.Points | null = null
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
@@ -122,10 +126,60 @@ export class StructureRenderer {
     this.scene.add(this.deformedLines)
   }
 
+  setGhostLine(start: { x: number; y: number } | null, end: { x: number; y: number } | null) {
+    this.remove(this.ghostLine); this.ghostLine = null
+    if (!start || !end) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([start.x, start.y, 0.05, end.x, end.y, 0.05]), 3
+    ))
+    const mat = new THREE.LineDashedMaterial({ color: 0x3b82f6, dashSize: 0.25, gapSize: 0.12 })
+    this.ghostLine = new THREE.Line(geo, mat)
+    this.ghostLine.computeLineDistances()
+    this.ghostLine.renderOrder = 3
+    this.scene.add(this.ghostLine)
+  }
+
+  setEpHandles(positions: Array<{ x: number; y: number }>) {
+    this.remove(this.epHandles); this.epHandles = null
+    if (!positions.length) return
+    const pos = new Float32Array(positions.length * 3)
+    positions.forEach((p, i) => { pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = 0.1 })
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    this.epHandles = new THREE.Points(geo, new THREE.PointsMaterial({ size: 14, sizeAttenuation: false, color: 0xffffff }))
+    this.epHandles.renderOrder = 5
+    this.scene.add(this.epHandles)
+  }
+
+  setEpGhost(fixed: { x: number; y: number } | null, drag: { x: number; y: number } | null) {
+    this.remove(this.epGhost); this.epGhost = null
+    if (!fixed || !drag) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(
+      new Float32Array([fixed.x, fixed.y, 0.05, drag.x, drag.y, 0.05]), 3
+    ))
+    const mat = new THREE.LineDashedMaterial({ color: 0x3b82f6, dashSize: 0.25, gapSize: 0.12 })
+    this.epGhost = new THREE.Line(geo, mat)
+    this.epGhost.computeLineDistances()
+    this.epGhost.renderOrder = 3
+    this.scene.add(this.epGhost)
+  }
+
+  setSnapRing(pos: { x: number; y: number } | null) {
+    this.remove(this.snapRing); this.snapRing = null
+    if (!pos) return
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([pos.x, pos.y, 0.1]), 3))
+    this.snapRing = new THREE.Points(geo, new THREE.PointsMaterial({ size: 20, sizeAttenuation: false, color: 0x2563eb }))
+    this.snapRing.renderOrder = 4
+    this.scene.add(this.snapRing)
+  }
+
   private remove(obj: THREE.Object3D | null) {
     if (!obj) return
     this.scene.remove(obj)
-    if (obj instanceof THREE.Points || obj instanceof THREE.LineSegments) {
+    if (obj instanceof THREE.Points || obj instanceof THREE.LineSegments || obj instanceof THREE.Line) {
       obj.geometry.dispose()
       ;(obj.material as THREE.Material).dispose()
     }
@@ -135,5 +189,9 @@ export class StructureRenderer {
     this.remove(this.nodePoints)
     this.remove(this.memberLines)
     this.remove(this.deformedLines)
+    this.setGhostLine(null, null)
+    this.setEpHandles([])
+    this.setEpGhost(null, null)
+    this.setSnapRing(null)
   }
 }
