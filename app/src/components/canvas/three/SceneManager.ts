@@ -1,17 +1,30 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
-const INITIAL_FRUSTUM_H = 20 // world units visible initially
+export type CameraMode = '2d' | '3d'
+
+const INITIAL_FRUSTUM_H = 20
 
 export class SceneManager {
   readonly renderer: THREE.WebGLRenderer
   readonly scene: THREE.Scene
-  readonly camera: THREE.OrthographicCamera
-  readonly controls: OrbitControls
+  private orthoCamera: THREE.OrthographicCamera
+  private perspCamera: THREE.PerspectiveCamera
+  controls: OrbitControls
+  private _mode: CameraMode = '2d'
+  private container: HTMLElement
   private animId = 0
   private ro: ResizeObserver
 
+  get camera(): THREE.Camera {
+    return this._mode === '2d' ? this.orthoCamera : this.perspCamera
+  }
+
+  get mode(): CameraMode { return this._mode }
+
   constructor(container: HTMLElement) {
+    this.container = container
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.setClearColor(0xffffff)
@@ -20,33 +33,69 @@ export class SceneManager {
 
     const { width, height } = container.getBoundingClientRect()
     const a = width / Math.max(height, 1)
-    const h = INITIAL_FRUSTUM_H
-    this.camera = new THREE.OrthographicCamera(-h * a / 2, h * a / 2, h / 2, -h / 2, -1000, 1000)
-    this.camera.position.set(0, 0, 10)
+
+    this.orthoCamera = new THREE.OrthographicCamera(
+      -INITIAL_FRUSTUM_H * a / 2, INITIAL_FRUSTUM_H * a / 2,
+      INITIAL_FRUSTUM_H / 2, -INITIAL_FRUSTUM_H / 2, -1000, 1000
+    )
+    this.orthoCamera.position.set(0, 0, 10)
+
+    this.perspCamera = new THREE.PerspectiveCamera(45, a, 0.01, 10000)
+    this.perspCamera.position.set(15, 10, 15)
+    this.perspCamera.lookAt(0, 0, 0)
 
     this.scene = new THREE.Scene()
+    this.controls = this.makeControls()
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableRotate = false
-    this.controls.enableDamping = false
-    this.controls.screenSpacePanning = true
-    this.controls.zoomToCursor = true
-
-    this.ro = new ResizeObserver(() => this.resize(container))
+    this.ro = new ResizeObserver(() => this.resize())
     this.ro.observe(container)
-    this.resize(container)
+    this.resize()
     this.loop()
   }
 
-  private resize(container: HTMLElement) {
-    const { width, height } = container.getBoundingClientRect()
+  private makeControls(): OrbitControls {
+    const c = new OrbitControls(this.camera, this.renderer.domElement)
+    c.enableDamping = false
+    c.screenSpacePanning = true
+    c.zoomToCursor = true
+    if (this._mode === '2d') {
+      c.enableRotate = false
+      c.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }
+    }
+    return c
+  }
+
+  setMode(mode: CameraMode) {
+    if (mode === this._mode) return
+    const target = this.controls.target.clone()
+    this.controls.dispose()
+    this._mode = mode
+
+    if (mode === '3d') {
+      const dist = (this.orthoCamera.top - this.orthoCamera.bottom) * 1.2
+      this.perspCamera.position.set(target.x + dist, target.y + dist * 0.7, dist)
+      this.perspCamera.lookAt(target)
+    } else {
+      this.orthoCamera.position.set(target.x, target.y, 10)
+      this.resize()
+    }
+
+    this.controls = this.makeControls()
+    this.controls.target.copy(target)
+    this.controls.update()
+  }
+
+  private resize() {
+    const { width, height } = this.container.getBoundingClientRect()
     if (!width || !height) return
     this.renderer.setSize(width, height, false)
     const a = width / height
-    const h = this.camera.top - this.camera.bottom
-    this.camera.left = -h * a / 2
-    this.camera.right = h * a / 2
-    this.camera.updateProjectionMatrix()
+    const h = this.orthoCamera.top - this.orthoCamera.bottom
+    this.orthoCamera.left = -h * a / 2
+    this.orthoCamera.right = h * a / 2
+    this.orthoCamera.updateProjectionMatrix()
+    this.perspCamera.aspect = a
+    this.perspCamera.updateProjectionMatrix()
   }
 
   private loop() {
@@ -56,24 +105,28 @@ export class SceneManager {
   }
 
   fitToView(minX: number, maxX: number, minY: number, maxY: number) {
-    const w = this.renderer.domElement.clientWidth
-    const h = this.renderer.domElement.clientHeight
+    const { clientWidth: w, clientHeight: h } = this.renderer.domElement
     const a = w / Math.max(h, 1)
     const rw = (maxX - minX) || 2
     const rh = (maxY - minY) || 2
     const pad = 1.4
-    const fh = Math.max(rh * pad, (rw * pad) / a)
-    const fw = fh * a
-    this.camera.left = -fw / 2
-    this.camera.right = fw / 2
-    this.camera.top = fh / 2
-    this.camera.bottom = -fh / 2
-    this.camera.zoom = 1
-    this.camera.updateProjectionMatrix()
     const cx = (minX + maxX) / 2
     const cy = (minY + maxY) / 2
-    this.controls.target.set(cx, cy, 0)
-    this.camera.position.set(cx, cy, 10)
+
+    if (this._mode === '2d') {
+      const fh = Math.max(rh * pad, (rw * pad) / a)
+      const fw = fh * a
+      this.orthoCamera.left = -fw / 2; this.orthoCamera.right = fw / 2
+      this.orthoCamera.top = fh / 2; this.orthoCamera.bottom = -fh / 2
+      this.orthoCamera.zoom = 1
+      this.orthoCamera.updateProjectionMatrix()
+      this.controls.target.set(cx, cy, 0)
+      this.orthoCamera.position.set(cx, cy, 10)
+    } else {
+      const dist = Math.max(rw, rh) * pad
+      this.perspCamera.position.set(cx + dist * 0.8, cy + dist * 0.6, dist)
+      this.controls.target.set(cx, cy, 0)
+    }
     this.controls.update()
   }
 
