@@ -290,6 +290,14 @@ Before marking a feature as done:
 - [ ] No test flakiness (no sleep, no arbitrary waits)
 - [ ] Documentation updated (FEATURES.md or relevant CLAUDE.md guide)
 
+## Pending Test Plans
+
+Feature work in progress — test cases designed but not yet written:
+
+- **[PHASE1D_TESTS.md](PHASE1D_TESTS.md)** — Grid, snap-to-grid, node Z (Three.js canvas Phase 1d); 28 tests planned (17 unit + 11 E2E)
+
+---
+
 ## Regression Testing
 
 When fixing a bug, always:

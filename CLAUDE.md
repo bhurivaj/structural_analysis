@@ -112,14 +112,16 @@ See `./docs/` for detailed guides:
 **Documentation (ALWAYS UPDATE):**
 1. Update relevant `./docs/*.md` file with implementation details
    - Include test case scenarios and architectural decisions
-2. Update `./docs/SPEC.md` — keep concise
-   - Increment feature count if new feature
-   - Update "Next Steps" section
-3. Update data contracts if any interface changed
-4. **Never claim "done" without:**
+2. Update `./docs/SPEC.md` — use this checklist every time, no exceptions:
+   - [ ] Feature count incremented? (any new file, composable, or capability counts)
+   - [ ] Feature list entry added/updated? (even sub-tasks like Phase 1d items)
+   - [ ] Data Contract updated? (any `interface` or `type` change → update the types list)
+   - [ ] "Next Steps" / roadmap updated? (mark done ✅, update pending 🔲)
+   - [ ] New composables / renderers / stores listed under Architecture?
+3. **Never claim "done" without:**
    - All tests passing ✅
    - Test files committed ✅
-   - Docs updated ✅
+   - All SPEC.md checklist items above completed ✅
 
 ---
 

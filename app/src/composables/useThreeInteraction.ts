@@ -6,7 +6,8 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useCanvasTool } from '@/composables/useCanvasTool'
 import { useCanvasViewport } from '@/composables/useCanvasViewport'
 import { useUndoRedo } from '@/composables/useUndoRedo'
-import { clientToWorld, worldPixelSize, hitNode, hitMember, segIntersectsRect } from '@/composables/threeHitTest'
+import { useCanvasMode } from '@/composables/useCanvasMode'
+import { clientToWorld, projectToScreen, hitNode, hitMember, segIntersectsRect } from '@/composables/threeHitTest'
 
 export type SelectionRect = { x: number; y: number; w: number; h: number }
 
@@ -18,8 +19,9 @@ export function useThreeInteraction() {
   const structure = useStructureStore()
   const settings = useSettingsStore()
   const { activeTool, setTool, setPendingLoadTarget } = useCanvasTool()
-  const { snapPoint } = useCanvasViewport()
+  const { snapPoint, toggleSnap } = useCanvasViewport()
   const { undo, redo } = useUndoRedo()
+  const { cameraMode } = useCanvasMode()
 
   const selectionRect = ref<SelectionRect | null>(null)
   const selectionMode = ref<'window' | 'crossing' | null>(null)
@@ -27,10 +29,11 @@ export function useThreeInteraction() {
 
   let _selStart: { cx: number; cy: number } | null = null
   let _selDragging = false
+  let _emptyClick3d: { cx: number; cy: number } | null = null
   let _nodeDrag: { nodeId: string; startWx: number; startWy: number; origX: number; origY: number } | null = null
   let _epDrag: { endpoint: 'start' | 'end'; memberId: string } | null = null
   let _epSnapId: string | null = null
-  let _mouseWorld: { x: number; y: number } | null = null
+  let _mouseWorld: { x: number; y: number; z: number } | null = null
 
   const singleSelectedMember = computed(() =>
     structure.selectedMemberIds.length === 1
@@ -38,32 +41,31 @@ export function useThreeInteraction() {
       : null
   )
 
-  function thr() {
-    return _scene && _canvas ? worldPixelSize(_scene, _canvas, 10) : 0.3
+  function toWorld(e: MouseEvent, planeZ = 0) {
+    return _scene && _canvas ? clientToWorld(e.clientX, e.clientY, _scene, _canvas, planeZ) : null
   }
 
-  function toWorld(e: MouseEvent) {
-    return _scene && _canvas ? clientToWorld(e.clientX, e.clientY, _scene, _canvas) : null
-  }
-
-  function hitEp(wx: number, wy: number) {
+  function hitEp(clientX: number, clientY: number) {
+    if (!_scene || !_canvas) return null
     const m = singleSelectedMember.value
     if (!m) return null
-    const t = thr() * 2
+    const cr = _canvas.getBoundingClientRect()
     for (const ep of ['start', 'end'] as const) {
       const n = structure.nodeById(ep === 'start' ? m.startNodeId : m.endNodeId)
-      if (n && Math.hypot(wx - n.x, wy - n.y) < t) return { memberId: m.id, endpoint: ep }
+      if (!n) continue
+      const { sx, sy } = projectToScreen(n.x, n.y, n.z ?? 0, _scene.camera, cr)
+      if (Math.hypot(clientX - sx, clientY - sy) < 14) return { memberId: m.id, endpoint: ep }
     }
     return null
   }
 
-  function updateOverlays(wx: number | null, wy: number | null) {
+  function updateOverlays(wx: number | null, wy: number | null, wz = 0) {
     if (!_rend) return
     // Ghost line: ADD_MEMBER pending start
     const pid = structure.pendingMemberStartNodeId
     const startNode = pid ? structure.nodeById(pid) : null
     if (startNode && wx != null && wy != null) {
-      _rend.setGhostLine(startNode, { x: wx, y: wy })
+      _rend.setGhostLine(startNode, { x: wx, y: wy, z: wz })
     } else {
       _rend.setGhostLine(null, null)
     }
@@ -72,7 +74,7 @@ export function useThreeInteraction() {
     if (sm && activeTool.value === 'SELECT') {
       const n1 = structure.nodeById(sm.startNodeId)
       const n2 = structure.nodeById(sm.endNodeId)
-      _rend.setEpHandles([n1, n2].filter(Boolean) as Array<{ x: number; y: number }>)
+      _rend.setEpHandles([n1, n2].filter(Boolean) as Array<{ x: number; y: number; z?: number }>)
     } else {
       _rend.setEpHandles([])
     }
@@ -82,7 +84,7 @@ export function useThreeInteraction() {
         ? structure.memberById(_epDrag.memberId)?.endNodeId
         : structure.memberById(_epDrag.memberId)?.startNodeId
       const fixedNode = fixedId ? structure.nodeById(fixedId) : null
-      _rend.setEpGhost(fixedNode ?? null, { x: wx, y: wy })
+      _rend.setEpGhost(fixedNode ?? null, { x: wx, y: wy, z: wz })
       _rend.setSnapRing(_epSnapId ? structure.nodeById(_epSnapId) ?? null : null)
     } else {
       _rend.setEpGhost(null, null)
@@ -90,24 +92,25 @@ export function useThreeInteraction() {
     }
   }
 
-  function handleMouseDown(e: MouseEvent) {
+  function handlePointerDown(e: PointerEvent) {
     if (e.button === 1) return
     if (e.button !== 0) return
     const isPan = activeTool.value === 'PAN' || isSpaceHeld.value
     if (isPan) return
 
-    e.stopPropagation()
     const world = toWorld(e)
     if (!world) return
     const { x: wx, y: wy } = world
 
     if (activeTool.value === 'ADD_NODE') {
+      e.stopPropagation()
       const s = snapPoint(wx, wy)
       structure.addNode({ x: s.x, y: s.y, support: 'free' })
       return
     }
     if (activeTool.value === 'ADD_MEMBER') {
-      const nid = hitNode(wx, wy, structure.nodes, thr())
+      e.stopPropagation()
+      const nid = _scene && _canvas ? hitNode(e.clientX, e.clientY, structure.nodes, _scene, _canvas) : null
       if (nid) {
         if (!structure.pendingMemberStartNodeId) {
           structure.pendingMemberStartNodeId = nid
@@ -118,51 +121,72 @@ export function useThreeInteraction() {
             I: settings.defaultI, isTruss: structure.structureType === 'truss',
           })
           structure.pendingMemberStartNodeId = null
+          updateOverlays(wx, wy, world.z)
         }
       }
       return
     }
     if (activeTool.value === 'ADD_POINT_LOAD' || activeTool.value === 'ADD_MOMENT') {
-      const nid = hitNode(wx, wy, structure.nodes, thr())
+      e.stopPropagation()
+      const nid = _scene && _canvas ? hitNode(e.clientX, e.clientY, structure.nodes, _scene, _canvas) : null
       if (nid) setPendingLoadTarget(nid)
       return
     }
     if (activeTool.value === 'ADD_DIST_LOAD') {
-      const mid = hitMember(wx, wy, structure.members, structure.nodeById, thr() * 1.5)
+      e.stopPropagation()
+      const mid = _scene && _canvas ? hitMember(e.clientX, e.clientY, structure.members, structure.nodeById, _scene, _canvas) : null
       if (mid) setPendingLoadTarget(undefined, mid)
       return
     }
     if (activeTool.value === 'SELECT') {
-      const ep = hitEp(wx, wy)
-      if (ep) { _epDrag = ep; return }
-      const nid = hitNode(wx, wy, structure.nodes, thr())
+      const ep = hitEp(e.clientX, e.clientY)
+      if (ep) { e.stopPropagation(); _epDrag = ep; return }
+      const nid = _scene && _canvas ? hitNode(e.clientX, e.clientY, structure.nodes, _scene, _canvas) : null
       if (nid) {
+        e.stopPropagation()
         const n = structure.nodeById(nid)!
         _nodeDrag = { nodeId: nid, startWx: wx, startWy: wy, origX: n.x, origY: n.y }
         if (!structure.selectedNodeIds.includes(nid)) structure.selectNode(nid, e.shiftKey)
         return
       }
-      const mid = hitMember(wx, wy, structure.members, structure.nodeById, thr() * 1.5)
-      if (mid) { structure.selectMember(mid, e.shiftKey); return }
+      const mid = _scene && _canvas ? hitMember(e.clientX, e.clientY, structure.members, structure.nodeById, _scene, _canvas) : null
+      if (mid) { e.stopPropagation(); structure.selectMember(mid, e.shiftKey); return }
+
+      if (cameraMode.value === '3d') {
+        // Empty space in 3D: OrbitControls handles rotation; track for click-to-deselect
+        _emptyClick3d = { cx: e.clientX, cy: e.clientY }
+        return  // no stopPropagation — let OrbitControls rotate
+      }
+      e.stopPropagation()
       _selStart = { cx: e.clientX, cy: e.clientY }
     }
   }
 
   function handleMouseMove(e: MouseEvent) {
-    const world = toWorld(e)
+    // Determine projection plane Z: ep drag → fixed node's Z; ADD_MEMBER → start node's Z
+    let planeZ = 0
+    if (_epDrag) {
+      const fixedId = _epDrag.endpoint === 'start'
+        ? structure.memberById(_epDrag.memberId)?.endNodeId
+        : structure.memberById(_epDrag.memberId)?.startNodeId
+      planeZ = (fixedId ? structure.nodeById(fixedId) : null)?.z ?? 0
+    } else {
+      const pendingStart = structure.pendingMemberStartNodeId
+        ? structure.nodeById(structure.pendingMemberStartNodeId)
+        : null
+      planeZ = pendingStart?.z ?? 0
+    }
+    const world = toWorld(e, planeZ)
     _mouseWorld = world
 
-    if (_epDrag && world) {
-      _epSnapId = null
-      const t = thr() * 1.5
-      for (const n of structure.nodes) {
-        if (Math.hypot(n.x - world.x, n.y - world.y) < t) { _epSnapId = n.id; break }
-      }
+    if (_epDrag && _scene && _canvas) {
+      _epSnapId = hitNode(e.clientX, e.clientY, structure.nodes, _scene, _canvas, 15)
     }
 
     if (_nodeDrag && e.buttons === 1 && world) {
-      let nx = _nodeDrag.origX + (world.x - _nodeDrag.startWx)
-      let ny = _nodeDrag.origY + (world.y - _nodeDrag.startWy)
+      const base = toWorld(e, 0) ?? world  // node drag stays in XY plane
+      let nx = _nodeDrag.origX + (base.x - _nodeDrag.startWx)
+      let ny = _nodeDrag.origY + (base.y - _nodeDrag.startWy)
       if (e.shiftKey) { nx = Math.round(nx); ny = Math.round(ny) }
       structure.updateNode(_nodeDrag.nodeId, { x: nx, y: ny })
     }
@@ -176,7 +200,7 @@ export function useThreeInteraction() {
       selectionMode.value = sx >= ox ? 'window' : 'crossing'
     }
 
-    updateOverlays(world?.x ?? null, world?.y ?? null)
+    updateOverlays(world?.x ?? null, world?.y ?? null, world?.z ?? 0)
   }
 
   function handleMouseUp(e: MouseEvent) {
@@ -187,7 +211,7 @@ export function useThreeInteraction() {
           _epDrag.endpoint === 'start' ? { startNodeId: _epSnapId } : { endNodeId: _epSnapId })
       }
       _epDrag = null; _epSnapId = null
-      updateOverlays(_mouseWorld?.x ?? null, _mouseWorld?.y ?? null)
+      updateOverlays(_mouseWorld?.x ?? null, _mouseWorld?.y ?? null, _mouseWorld?.z ?? 0)
       return
     }
     if (_nodeDrag) { _nodeDrag = null; return }
@@ -216,6 +240,12 @@ export function useThreeInteraction() {
     }
 
     _selStart = null; _selDragging = false; selectionRect.value = null
+
+    if (_emptyClick3d) {
+      const dx = e.clientX - _emptyClick3d.cx, dy = e.clientY - _emptyClick3d.cy
+      if (Math.hypot(dx, dy) < 5 && activeTool.value === 'SELECT' && !e.shiftKey) structure.clearSelection()
+      _emptyClick3d = null
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -228,6 +258,7 @@ export function useThreeInteraction() {
     if (key === 'L') setTool('ADD_POINT_LOAD')
     if (key === 'D') setTool('ADD_DIST_LOAD')
     if (key === 'R') setTool('ADD_MOMENT')
+    if (key === 'G') toggleSnap()
     if (key === 'F' && _scene) {
       const xs = structure.nodes.map(n => n.x), ys = structure.nodes.map(n => n.y)
       if (xs.length) _scene.fitToView(Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys))
@@ -250,7 +281,7 @@ export function useThreeInteraction() {
 
   function attach(scene: SceneManager, rend: StructureRenderer, canvas: HTMLElement) {
     _scene = scene; _rend = rend; _canvas = canvas
-    canvas.addEventListener('mousedown', handleMouseDown, { capture: true })
+    canvas.addEventListener('pointerdown', handlePointerDown, { capture: true })
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
     document.addEventListener('keydown', handleKeyDown)
@@ -258,7 +289,7 @@ export function useThreeInteraction() {
   }
 
   function detach(canvas: HTMLElement) {
-    canvas.removeEventListener('mousedown', handleMouseDown, { capture: true })
+    canvas.removeEventListener('pointerdown', handlePointerDown, { capture: true })
     window.removeEventListener('mousemove', handleMouseMove)
     window.removeEventListener('mouseup', handleMouseUp)
     document.removeEventListener('keydown', handleKeyDown)

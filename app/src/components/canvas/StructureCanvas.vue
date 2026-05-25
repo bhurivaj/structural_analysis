@@ -2,18 +2,31 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { SceneManager } from './three/SceneManager'
 import { StructureRenderer } from './three/StructureRenderer'
+import { GridRenderer } from './three/GridRenderer'
+import { LoadsRenderer } from './three/LoadsRenderer'
+import { SupportRenderer } from './three/SupportRenderer'
+import { projectToScreen } from '@/composables/threeHitTest'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSolverStore } from '@/stores/solverStore'
+import { useLoadsStore } from '@/stores/loadsStore'
 import { useThreeInteraction } from '@/composables/useThreeInteraction'
 import { useCanvasTool } from '@/composables/useCanvasTool'
+import { useCanvasMode } from '@/composables/useCanvasMode'
+
+type LabelItem = { key: string; text: string; x: number; y: number }
 
 const containerRef = ref<HTMLDivElement | null>(null)
-const cameraMode = ref<'2d' | '3d'>('2d')
+const labels = ref<LabelItem[]>([])
+const { cameraMode, setCameraMode } = useCanvasMode()
 let sceneMan: SceneManager | null = null
 let structRend: StructureRenderer | null = null
+let gridRend: GridRenderer | null = null
+let loadsRend: LoadsRenderer | null = null
+let suppRend: SupportRenderer | null = null
 
 const structure = useStructureStore()
 const solver = useSolverStore()
+const loads = useLoadsStore()
 const { activeTool } = useCanvasTool()
 const { selectionRect, selectionMode, attach, detach } = useThreeInteraction()
 
@@ -50,17 +63,49 @@ function updateScene() {
     structure.selectedNodeIds, structure.selectedMemberIds,
     buildDeformedMap(), solver.deformedScale
   )
+  loadsRend?.update(
+    loads.pointLoads, loads.distributedLoads, loads.momentLoads,
+    structure.nodes, structure.members
+  )
+  suppRend?.update(structure.nodes, cameraMode.value)
+}
+
+function updateLabels() {
+  if (!sceneMan || !containerRef.value) return
+  const cr = containerRef.value.getBoundingClientRect()
+  const items: LabelItem[] = []
+  for (const n of structure.nodes) {
+    const { sx, sy } = projectToScreen(n.x, n.y, n.z ?? 0, sceneMan.camera, cr)
+    items.push({ key: `n-${n.id}`, text: n.label ?? '', x: sx - cr.left + 8, y: sy - cr.top - 14 })
+  }
+  for (const m of structure.members) {
+    const n1 = structure.nodeById(m.startNodeId)
+    const n2 = structure.nodeById(m.endNodeId)
+    if (!n1 || !n2) continue
+    const mx = (n1.x + n2.x) / 2, my = (n1.y + n2.y) / 2, mz = ((n1.z ?? 0) + (n2.z ?? 0)) / 2
+    const { sx, sy } = projectToScreen(mx, my, mz, sceneMan.camera, cr)
+    items.push({ key: `m-${m.id}`, text: m.label ?? '', x: sx - cr.left + 6, y: sy - cr.top - 10 })
+  }
+  labels.value = items
 }
 
 function toggleCameraMode() {
   const next = cameraMode.value === '2d' ? '3d' : '2d'
-  cameraMode.value = next
+  setCameraMode(next)
   sceneMan?.setMode(next)
+  suppRend?.update(structure.nodes, next)
 }
 
 onMounted(() => {
   sceneMan = new SceneManager(containerRef.value!)
   structRend = new StructureRenderer(sceneMan.scene)
+  gridRend = new GridRenderer(sceneMan.scene)
+  loadsRend = new LoadsRenderer(sceneMan.scene)
+  suppRend = new SupportRenderer(sceneMan.scene)
+  sceneMan.addFrameCallback(() => {
+    if (sceneMan && gridRend) gridRend.update(sceneMan)
+    updateLabels()
+  })
   attach(sceneMan, structRend, sceneMan.renderer.domElement)
   updateScene()
 })
@@ -68,6 +113,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (sceneMan) detach(sceneMan.renderer.domElement)
   structRend?.dispose()
+  gridRend?.dispose()
+  loadsRend?.dispose()
+  suppRend?.dispose()
   sceneMan?.dispose()
 })
 
@@ -76,6 +124,7 @@ watch(
     () => structure.nodes, () => structure.members,
     () => structure.selectedNodeIds, () => structure.selectedMemberIds,
     () => solver.result, () => solver.showDeformed, () => solver.deformedScale,
+    () => loads.loads,
   ],
   updateScene, { deep: true }
 )
@@ -97,6 +146,12 @@ defineExpose({ captureSnapshot, fitToView })
 <template>
   <div ref="containerRef" class="w-full h-full relative" :style="{ cursor: canvasCursor }">
     <div v-if="selectionRect" :style="selectionOverlayStyle" />
+    <span
+      v-for="lbl in labels" :key="lbl.key"
+      class="absolute pointer-events-none select-none font-mono text-[10px] leading-none"
+      :class="lbl.key.startsWith('n-') ? 'text-slate-500' : 'text-slate-400'"
+      :style="{ left: `${lbl.x}px`, top: `${lbl.y}px` }"
+    >{{ lbl.text }}</span>
     <button
       class="absolute top-2 right-2 z-10 px-2.5 py-1 text-xs font-mono font-semibold rounded border shadow-sm transition-colors select-none"
       :class="cameraMode === '3d'

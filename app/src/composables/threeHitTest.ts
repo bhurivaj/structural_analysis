@@ -7,20 +7,36 @@ const _ndc = new THREE.Vector2()
 const _plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _pt = new THREE.Vector3()
 
+/** Project a world point to canvas pixel coordinates. */
+export function projectToScreen(
+  wx: number, wy: number, wz: number,
+  cam: THREE.Camera, cr: DOMRect
+): { sx: number; sy: number } {
+  const v = new THREE.Vector3(wx, wy, wz).project(cam)
+  return {
+    sx: (v.x + 1) / 2 * cr.width + cr.left,
+    sy: -(v.y - 1) / 2 * cr.height + cr.top,
+  }
+}
+
+/** Unproject mouse to a world plane at the given Z. Used for placing new elements. */
 export function clientToWorld(
   clientX: number, clientY: number,
-  scene: SceneManager, canvas: HTMLElement
-): { x: number; y: number } | null {
+  scene: SceneManager, canvas: HTMLElement,
+  planeZ = 0
+): { x: number; y: number; z: number } | null {
   const cr = canvas.getBoundingClientRect()
   _ndc.set(
     ((clientX - cr.left) / cr.width) * 2 - 1,
     -((clientY - cr.top) / cr.height) * 2 + 1
   )
   _raycaster.setFromCamera(_ndc, scene.camera)
+  _plane.set(new THREE.Vector3(0, 0, 1), -planeZ)
   if (!_raycaster.ray.intersectPlane(_plane, _pt)) return null
-  return { x: _pt.x, y: _pt.y }
+  return { x: _pt.x, y: _pt.y, z: planeZ }
 }
 
+/** @deprecated Use screen-space hit functions instead. */
 export function worldPixelSize(scene: SceneManager, canvas: HTMLElement, px: number): number {
   const h = canvas.clientHeight
   if (!h) return 0.3
@@ -35,34 +51,45 @@ export function worldPixelSize(scene: SceneManager, canvas: HTMLElement, px: num
   return px * worldH / h
 }
 
+/** Find the closest node within thrPx screen pixels of (clientX, clientY). */
 export function hitNode(
-  wx: number, wy: number,
+  clientX: number, clientY: number,
   nodes: StructureNode[],
-  thr: number
+  scene: SceneManager,
+  canvas: HTMLElement,
+  thrPx = 10
 ): string | null {
+  const cr = canvas.getBoundingClientRect()
   let best: string | null = null
   let bestD = Infinity
   for (const n of nodes) {
-    const d = Math.hypot(n.x - wx, n.y - wy)
-    if (d < thr && d < bestD) { bestD = d; best = n.id }
+    const { sx, sy } = projectToScreen(n.x, n.y, n.z ?? 0, scene.camera, cr)
+    const d = Math.hypot(clientX - sx, clientY - sy)
+    if (d < thrPx && d < bestD) { bestD = d; best = n.id }
   }
   return best
 }
 
+/** Find the closest member whose projected segment is within thrPx of (clientX, clientY). */
 export function hitMember(
-  wx: number, wy: number,
+  clientX: number, clientY: number,
   members: Member[],
   nodeById: (id: string) => StructureNode | undefined,
-  thr: number
+  scene: SceneManager,
+  canvas: HTMLElement,
+  thrPx = 15
 ): string | null {
+  const cr = canvas.getBoundingClientRect()
   let best: string | null = null
   let bestD = Infinity
   for (const m of members) {
     const n1 = nodeById(m.startNodeId)
     const n2 = nodeById(m.endNodeId)
     if (!n1 || !n2) continue
-    const d = distPtSeg(wx, wy, n1.x, n1.y, n2.x, n2.y)
-    if (d < thr && d < bestD) { bestD = d; best = m.id }
+    const p1 = projectToScreen(n1.x, n1.y, n1.z ?? 0, scene.camera, cr)
+    const p2 = projectToScreen(n2.x, n2.y, n2.z ?? 0, scene.camera, cr)
+    const d = distPtSeg(clientX, clientY, p1.sx, p1.sy, p2.sx, p2.sy)
+    if (d < thrPx && d < bestD) { bestD = d; best = m.id }
   }
   return best
 }

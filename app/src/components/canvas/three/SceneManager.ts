@@ -15,6 +15,7 @@ export class SceneManager {
   private container: HTMLElement
   private animId = 0
   private ro: ResizeObserver
+  private frameCallbacks: Array<() => void> = []
 
   get camera(): THREE.Camera {
     return this._mode === '2d' ? this.orthoCamera : this.perspCamera
@@ -41,7 +42,7 @@ export class SceneManager {
     this.orthoCamera.position.set(0, 0, 10)
 
     this.perspCamera = new THREE.PerspectiveCamera(45, a, 0.01, 10000)
-    this.perspCamera.position.set(15, 10, 15)
+    this.perspCamera.position.set(5, 7, 20)
     this.perspCamera.lookAt(0, 0, 0)
 
     this.scene = new THREE.Scene()
@@ -73,7 +74,8 @@ export class SceneManager {
 
     if (mode === '3d') {
       const dist = (this.orthoCamera.top - this.orthoCamera.bottom) * 1.2
-      this.perspCamera.position.set(target.x + dist, target.y + dist * 0.7, dist)
+      // Place camera mostly along +Z so X→screen-right, Y→screen-up (XY plane face-on)
+      this.perspCamera.position.set(target.x + dist * 0.2, target.y + dist * 0.3, target.z + dist)
       this.perspCamera.lookAt(target)
     } else {
       this.orthoCamera.position.set(target.x, target.y, 10)
@@ -98,10 +100,15 @@ export class SceneManager {
     this.perspCamera.updateProjectionMatrix()
   }
 
+  addFrameCallback(cb: () => void) {
+    this.frameCallbacks.push(cb)
+  }
+
   private loop() {
     this.animId = requestAnimationFrame(() => this.loop())
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
+    for (const cb of this.frameCallbacks) cb()
   }
 
   fitToView(minX: number, maxX: number, minY: number, maxY: number) {
@@ -124,7 +131,7 @@ export class SceneManager {
       this.orthoCamera.position.set(cx, cy, 10)
     } else {
       const dist = Math.max(rw, rh) * pad
-      this.perspCamera.position.set(cx + dist * 0.8, cy + dist * 0.6, dist)
+      this.perspCamera.position.set(cx + dist * 0.2, cy + dist * 0.3, dist)
       this.controls.target.set(cx, cy, 0)
     }
     this.controls.update()

@@ -11,7 +11,7 @@
 - State: Pinia (stores: structureStore, loadsStore, steelProfileStore, solverStore, settingsStore)
 - Routing: Vue Router 4
 - Styling: Tailwind CSS v4
-- Canvas: D3.js v7 (zoom, pan, interactive drawing)
+- Canvas: Three.js r0.184 (WebGL renderer, OrthographicCamera/PerspectiveCamera, OrbitControls)
 - FEM Math: mathjs (lusolve for matrix solve)
 - Testing: Vitest (unit), Playwright (e2e)
 
@@ -36,23 +36,27 @@ src/
 
 ## Current State
 
-**✅ Completed (29/29 features):**
+**✅ Completed (30/30 features):**
 
-1. **Interactive Canvas Workspace**
-   - D3 draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
-   - Pan/zoom: scroll wheel, middle-mouse (wheel click), Space+drag temporary pan
+1. **Interactive Canvas Workspace (Three.js WebGL)**
+   - Draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
+   - Pan/zoom: scroll wheel, middle-mouse drag, Space+drag temporary pan
    - Keyboard shortcuts (S, P, N, M, L, D, R, G=snap-toggle, Delete, Ctrl+Z/Y)
    - Undo/Redo with debounced snapshots (up to 50 entries)
    - Session persistence: auto-save to localStorage + resume dialog
-   - **Force labels now update when unit settings change + deformed scale changes**
-   - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive grid (power-of-2 sizing) visible at all zoom levels
-   - **Shift+drag node** — snap to nearest grid position
+   - **Three.js canvas (Phase 1 complete):** replaced D3/SVG with WebGL renderer
+     - `SceneManager.ts` — dual cameras (OrthographicCamera 2D / PerspectiveCamera 3D), OrbitControls, resize loop
+     - `StructureRenderer.ts` — nodes (Points), members (LineSegments), deformed shape (LineDashedMaterial), ep handles, ghost line, snap ring
+     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls
+     - `threeHitTest.ts` — raycaster → z=0 plane for screen→world, node/member hit tests
+     - **2D/3D camera toggle button** (top-right of canvas) — switches OrthographicCamera ↔ PerspectiveCamera with `SceneManager.setMode()`
+   - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive power-of-2 grid visible at all zoom levels
+   - **Shift+drag node** — snap to nearest integer world unit
    - **Editable node labels** — auto-assigned N1, N2, … with inline editing
-   - **Truss validation** — moment loads prevented on truss structures with UX feedback
-   - **Member label display on canvas** — shows member label + steel profile designation (e.g., "M1 / H 150×75") at midpoint, changes color when selected
-   - **Ghost line preview** — shows correct direction when drawing members or reconnecting endpoints
-   - **Origin marker** — crosshair at (0,0) visible on canvas
-   - **Fit-to-view button** — correctly centers structure and zooms to fit
+   - **Truss validation** — moment loads prevented on truss structures
+   - **Ghost line preview** — dashed blue line follows cursor when drawing members or dragging endpoints
+   - **Origin marker** — crosshair at world (0,0)
+   - **Fit-to-view** — F key + button centers structure in view
 
 2. **FEM Solver**
    - 2D Frame + Truss analysis via matrix stiffness method
@@ -265,7 +269,7 @@ src/
 
 **Key Types** (in `src/types/`):
 
-- `StructureNode`: { id, x, y, support, rollerAxis?, label }
+- `StructureNode`: { id, x, y, z?, support, rollerAxis?, label } — z optional (default 0); shown in NodePanel only when 3D mode active
 - `Member`: { id, startNodeId, endNodeId, steelProfileId, E, A, I, isTruss, tensionOnly?, label? }
 - `Load`: PointLoad | DistributedLoad | MomentLoad
 - `SteelProfile`: { id, standard, profileClass, d, bf, tf, tw, A, Ix, Iy, Sx, E, Fy, ... }
@@ -348,9 +352,27 @@ Known limitations and missing functionality compared to a full-featured structur
 2. ~~**Capacity graphs**~~ — ✅ Implemented (feature 27)
 3. ~~**Envelope N/V/M diagrams**~~ — ✅ Implemented (feature 28)
 4. ~~**Self-weight generation**~~ — ✅ Implemented (feature 29)
-5. ~~**Icon refresh (Undo/Redo/Import)**~~ — ✅ Done (WorkspaceView.vue + AppNavbar.vue use inline SVG from Heroicons)
-6. ~~**User Guide**~~ — ✅ Created `docs/USER_GUIDE.md` (end-user documentation covering all 16 sections)
-7. ~~**In-app Help page**~~ — ✅ Done (`/help` route + `HelpView.vue` with sidebar nav; "Help" added to AppNavbar)
+5. ~~**Icon refresh (Undo/Redo/Import)**~~ — ✅ Done
+6. ~~**User Guide**~~ — ✅ Created `docs/USER_GUIDE.md`
+7. ~~**In-app Help page**~~ — ✅ Done (`/help` route + `HelpView.vue`)
+8. ~~**Three.js canvas Phase 1**~~ — ✅ Done (WebGL renderer, dual cameras, all interactions ported)
+
+### 3D Canvas Roadmap (In Progress)
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **Phase 1** | Three.js visual/interaction replacement (2D parity) | ✅ Done |
+| **Phase 2** | Add `z: number` to `StructureNode`; 3D node placement + camera | 🔲 Next |
+| **Phase 3** | 3D FEM solver — frame 6-DOF/node (ux,uy,uz,rx,ry,rz), truss 3-DOF/node | 🔲 |
+| **Phase 4** | 3D loads (Fz, out-of-plane dist loads, supports with 3-axis constraints) | 🔲 |
+
+**Phase 1d status:**
+- ✅ Grid rendering — `GridRenderer.ts` adaptive power-of-2 grid in 2D + `THREE.GridHelper` (XY plane) in 3D + amber origin marker; runs every frame via `SceneManager.addFrameCallback()`
+- ✅ Snap to grid — G key wired to `toggleSnap()` in `useThreeInteraction.ts`
+- ✅ Node Z input — `z?: number` in `StructureNode`; Z field shown in `NodePanel` when 3D mode; `StructureRenderer` uses `n.z ?? 0`; shared state via `useCanvasMode.ts`
+- ✅ Load arrows (Three.js) — `LoadsRenderer.ts`: point loads (Fx/Fy arrows), distributed loads (multi-arrow along member), moment loads (arc ring); wired into `StructureCanvas.vue` via `loadsStore` watch
+- ✅ Support symbols (Three.js) — `SupportRenderer.ts`: batched `LineSegments` geometry; pinned triangle, fixed bar+hatch, roller triangle+wheels (rollerAxis 'x'/'y'); wired into `StructureCanvas.vue`
+- ✅ Node/Member labels — HTML overlay in `StructureCanvas.vue`: per-frame `updateLabels()` via `addFrameCallback`; projects node/member-midpoint to screen pixels; renders as `<span>` with `pointer-events: none`; node labels = N1/N2/… (slate-500), member labels = M1/M2/… (slate-400)
 
 ---
 

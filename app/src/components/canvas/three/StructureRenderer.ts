@@ -45,7 +45,7 @@ export class StructureRenderer {
     const sel = new Set(selectedNodeIds)
 
     nodes.forEach((n, i) => {
-      pos[i * 3] = n.x; pos[i * 3 + 1] = n.y; pos[i * 3 + 2] = 0
+      pos[i * 3] = n.x; pos[i * 3 + 1] = n.y; pos[i * 3 + 2] = n.z ?? 0
       const c = sel.has(n.id) ? C_NODE_SEL : C_NODE
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b
     })
@@ -74,8 +74,8 @@ export class StructureRenderer {
       const n2 = nodeMap.get(m.endNodeId)
       if (!n1 || !n2) return
       const b = i * 6
-      pos[b] = n1.x; pos[b + 1] = n1.y; pos[b + 2] = 0
-      pos[b + 3] = n2.x; pos[b + 4] = n2.y; pos[b + 5] = 0
+      pos[b] = n1.x; pos[b + 1] = n1.y; pos[b + 2] = n1.z ?? 0
+      pos[b + 3] = n2.x; pos[b + 4] = n2.y; pos[b + 5] = n2.z ?? 0
       const c = sel.has(m.id) ? C_MEMBER_SEL : m.tensionOnly ? C_TENSION : C_MEMBER
       col[b] = c.r; col[b + 1] = c.g; col[b + 2] = c.b
       col[b + 3] = c.r; col[b + 4] = c.g; col[b + 5] = c.b
@@ -126,12 +126,13 @@ export class StructureRenderer {
     this.scene.add(this.deformedLines)
   }
 
-  setGhostLine(start: { x: number; y: number } | null, end: { x: number; y: number } | null) {
+  setGhostLine(start: { x: number; y: number; z?: number } | null, end: { x: number; y: number; z?: number } | null) {
     this.remove(this.ghostLine); this.ghostLine = null
     if (!start || !end) return
     const geo = new THREE.BufferGeometry()
+    const sz = (start.z ?? 0) + 0.05, ez = (end.z ?? 0) + 0.05
     geo.setAttribute('position', new THREE.BufferAttribute(
-      new Float32Array([start.x, start.y, 0.05, end.x, end.y, 0.05]), 3
+      new Float32Array([start.x, start.y, sz, end.x, end.y, ez]), 3
     ))
     const mat = new THREE.LineDashedMaterial({ color: 0x3b82f6, dashSize: 0.25, gapSize: 0.12 })
     this.ghostLine = new THREE.Line(geo, mat)
@@ -140,24 +141,27 @@ export class StructureRenderer {
     this.scene.add(this.ghostLine)
   }
 
-  setEpHandles(positions: Array<{ x: number; y: number }>) {
+  setEpHandles(positions: Array<{ x: number; y: number; z?: number }>) {
     this.remove(this.epHandles); this.epHandles = null
     if (!positions.length) return
     const pos = new Float32Array(positions.length * 3)
-    positions.forEach((p, i) => { pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = 0.1 })
+    positions.forEach((p, i) => { pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = (p.z ?? 0) + 0.1 })
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    this.epHandles = new THREE.Points(geo, new THREE.PointsMaterial({ size: 14, sizeAttenuation: false, color: 0xffffff }))
+    this.epHandles = new THREE.Points(geo, new THREE.PointsMaterial({ size: 14, sizeAttenuation: false, color: 0x22d3ee }))
     this.epHandles.renderOrder = 5
     this.scene.add(this.epHandles)
   }
 
-  setEpGhost(fixed: { x: number; y: number } | null, drag: { x: number; y: number } | null) {
+  setEpGhost(fixed: { x: number; y: number; z?: number } | null, drag: { x: number; y: number; z?: number } | null) {
     this.remove(this.epGhost); this.epGhost = null
     if (!fixed || !drag) return
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(
-      new Float32Array([fixed.x, fixed.y, 0.05, drag.x, drag.y, 0.05]), 3
+      new Float32Array([
+        fixed.x, fixed.y, (fixed.z ?? 0) + 0.05,
+        drag.x, drag.y, (drag.z ?? 0) + 0.05,
+      ]), 3
     ))
     const mat = new THREE.LineDashedMaterial({ color: 0x3b82f6, dashSize: 0.25, gapSize: 0.12 })
     this.epGhost = new THREE.Line(geo, mat)
@@ -166,11 +170,11 @@ export class StructureRenderer {
     this.scene.add(this.epGhost)
   }
 
-  setSnapRing(pos: { x: number; y: number } | null) {
+  setSnapRing(pos: { x: number; y: number; z?: number } | null) {
     this.remove(this.snapRing); this.snapRing = null
     if (!pos) return
     const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([pos.x, pos.y, 0.1]), 3))
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([pos.x, pos.y, (pos.z ?? 0) + 0.1]), 3))
     this.snapRing = new THREE.Points(geo, new THREE.PointsMaterial({ size: 20, sizeAttenuation: false, color: 0x2563eb }))
     this.snapRing.renderOrder = 4
     this.scene.add(this.snapRing)
