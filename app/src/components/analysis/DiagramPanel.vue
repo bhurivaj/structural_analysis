@@ -8,6 +8,7 @@ const structure = useStructureStore()
 
 const selectedDiagramMode = ref<'N' | 'V' | 'M'>('M')
 const selectedMemberIdx = ref(0)
+const showEnvelope = ref(false)
 
 const memberOptions = computed(() =>
   solver.result?.memberResults.map((mr, idx) => ({
@@ -16,9 +17,18 @@ const memberOptions = computed(() =>
   })) ?? []
 )
 
+const hasEnvelope = computed(() => solver.envelopeResult?.success && (solver.envelopeResult.diagramEnvelopes?.length ?? 0) > 0)
+
 const currentMemberResult = computed(() =>
   solver.result?.memberResults[selectedMemberIdx.value]
 )
+
+const currentMemberId = computed(() => currentMemberResult.value?.memberId)
+
+const envelopeDiagram = computed(() => {
+  if (!hasEnvelope.value || !currentMemberId.value) return null
+  return solver.envelopeResult!.diagramEnvelopes!.find(d => d.memberId === currentMemberId.value) ?? null
+})
 
 function getValues() {
   if (!currentMemberResult.value) return []
@@ -28,11 +38,36 @@ function getValues() {
   return currentMemberResult.value.M
 }
 
+function getEnvelopeMin() {
+  if (!envelopeDiagram.value) return []
+  const mode = selectedDiagramMode.value
+  if (mode === 'N') return envelopeDiagram.value.minN
+  if (mode === 'V') return envelopeDiagram.value.minV
+  return envelopeDiagram.value.minM
+}
+
+function getEnvelopeMax() {
+  if (!envelopeDiagram.value) return []
+  const mode = selectedDiagramMode.value
+  if (mode === 'N') return envelopeDiagram.value.maxN
+  if (mode === 'V') return envelopeDiagram.value.maxV
+  return envelopeDiagram.value.maxM
+}
+
 const values = computed(() => getValues())
+const envMin = computed(() => getEnvelopeMin())
+const envMax = computed(() => getEnvelopeMax())
 const stations = computed(() => currentMemberResult.value?.stations ?? [])
 
-const minVal = computed(() => Math.min(...values.value, 0))
-const maxVal = computed(() => Math.max(...values.value, 0))
+const allValues = computed(() => {
+  if (showEnvelope.value && envelopeDiagram.value) {
+    return [...envMin.value, ...envMax.value]
+  }
+  return values.value
+})
+
+const minVal = computed(() => Math.min(...allValues.value, 0))
+const maxVal = computed(() => Math.max(...allValues.value, 0))
 const range = computed(() => maxVal.value - minVal.value || 1)
 
 function yPos(v: number) {
@@ -40,12 +75,20 @@ function yPos(v: number) {
 }
 
 function xPos(i: number) {
-  return 10 + (i / (values.value.length - 1 || 1)) * 80
+  const len = showEnvelope.value && envMax.value.length > 0 ? envMax.value.length : values.value.length
+  return 10 + (i / (len - 1 || 1)) * 80
 }
+
+const bandPoints = computed(() => {
+  if (!showEnvelope.value || envMax.value.length === 0) return ''
+  const top = envMax.value.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ')
+  const bottom = [...envMin.value].reverse().map((v, i) => `${xPos(envMin.value.length - 1 - i)},${yPos(v)}`).join(' ')
+  return `${top} ${bottom}`
+})
 </script>
 
 <template>
-  <div class="border-t border-slate-200 pt-4">
+  <div data-testid="diagram-panel" class="border-t border-slate-200 pt-4">
     <div class="text-sm font-medium text-slate-700 mb-2">Internal Force Diagrams</div>
 
     <div class="space-y-3 bg-slate-50 rounded p-3">
@@ -72,13 +115,27 @@ function xPos(i: number) {
         </div>
       </div>
 
+      <!-- Envelope toggle -->
+      <div v-if="hasEnvelope" class="flex gap-1">
+        <button
+          class="flex-1 py-0.5 text-xs rounded transition-colors"
+          :class="!showEnvelope ? 'bg-blue-600 text-white' : 'bg-white border border-slate-300 text-slate-500'"
+          @click="showEnvelope = false"
+        >Active</button>
+        <button
+          class="flex-1 py-0.5 text-xs rounded transition-colors"
+          :class="showEnvelope ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-300 text-slate-500'"
+          @click="showEnvelope = true"
+        >Envelope</button>
+      </div>
+
       <!-- SVG Diagram -->
       <svg viewBox="0 0 100 100" class="w-full h-40 border border-slate-300 rounded bg-white">
         <!-- Axes -->
         <line x1="10" y1="90" x2="90" y2="90" stroke="#d1d5db" stroke-width="0.5" />
         <line x1="10" y1="10" x2="10" y2="90" stroke="#d1d5db" stroke-width="0.5" />
 
-        <!-- Zero line (if applicable) -->
+        <!-- Zero line -->
         <line
           v-if="minVal < 0 && maxVal > 0"
           x1="10"
@@ -90,17 +147,41 @@ function xPos(i: number) {
           stroke-dasharray="1,1"
         />
 
-        <!-- Diagram bars/areas -->
-        <g v-if="values.length > 0">
-          <!-- Draw filled area under curve -->
+        <!-- Envelope band -->
+        <polygon
+          v-if="showEnvelope && bandPoints"
+          data-testid="envelope-band"
+          :points="bandPoints"
+          fill="#6366f1"
+          fill-opacity="0.15"
+          stroke="none"
+        />
+        <!-- Envelope max line -->
+        <polyline
+          v-if="showEnvelope && envMax.length > 0"
+          :points="envMax.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ')"
+          fill="none"
+          stroke="#6366f1"
+          stroke-width="0.8"
+        />
+        <!-- Envelope min line -->
+        <polyline
+          v-if="showEnvelope && envMin.length > 0"
+          :points="envMin.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ')"
+          fill="none"
+          stroke="#6366f1"
+          stroke-width="0.8"
+          stroke-dasharray="2,1"
+        />
+
+        <!-- Active diagram -->
+        <g v-if="!showEnvelope && values.length > 0">
           <polyline
             :points="values.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ')"
             fill="none"
             stroke="#3b82f6"
             stroke-width="0.8"
           />
-
-          <!-- Vertical bars from zero line -->
           <line
             v-for="(v, i) in values"
             :key="`bar-${i}`"
@@ -111,8 +192,6 @@ function xPos(i: number) {
             :stroke="v >= 0 ? '#3b82f6' : '#ef4444'"
             stroke-width="0.4"
           />
-
-          <!-- Points -->
           <circle
             v-for="(v, i) in values"
             :key="`pt-${i}`"
@@ -129,7 +208,12 @@ function xPos(i: number) {
       </svg>
 
       <!-- Stats -->
-      <div v-if="values.length > 0" class="text-xs text-slate-600 space-y-0.5">
+      <div v-if="showEnvelope && envMax.length > 0" class="text-xs text-slate-600 space-y-0.5">
+        <div>Max: <span class="font-mono font-semibold">{{ maxVal.toFixed(3) }}</span></div>
+        <div>Min: <span class="font-mono font-semibold">{{ minVal.toFixed(3) }}</span></div>
+        <div class="text-indigo-600 text-[10px]">Envelope across {{ solver.envelopeResult?.perComboResults.length }} combos</div>
+      </div>
+      <div v-else-if="values.length > 0" class="text-xs text-slate-600 space-y-0.5">
         <div>Max: <span class="font-mono font-semibold">{{ maxVal.toFixed(3) }}</span></div>
         <div>Min: <span class="font-mono font-semibold">{{ minVal.toFixed(3) }}</span></div>
       </div>

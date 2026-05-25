@@ -6,7 +6,7 @@ import { useLoadsStore } from './loadsStore'
 import { useLoadCasesStore } from './loadCasesStore'
 import { runFemAnalysis } from '@/solver'
 import { buildFactoredLoads } from '@/solver/buildFactoredLoads'
-import { computeEnvelope } from '@/solver/envelopeAnalysis'
+import { computeEnvelope, computeEnvelopeDiagrams } from '@/solver/envelopeAnalysis'
 
 export const useSolverStore = defineStore('solver', () => {
   const result = ref<SolverResult | null>(null)
@@ -78,7 +78,8 @@ export const useSolverStore = defineStore('solver', () => {
       }
 
       const envelopes = computeEnvelope(perComboResults)
-      envelopeResult.value = { success: true, envelopes, perComboResults, combinationNames, timestamp: Date.now() }
+      const diagramEnvelopes = computeEnvelopeDiagrams(perComboResults)
+      envelopeResult.value = { success: true, envelopes, perComboResults, combinationNames, diagramEnvelopes, timestamp: Date.now() }
     } catch (e) {
       envelopeResult.value = {
         success: false,

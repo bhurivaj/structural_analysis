@@ -11,7 +11,7 @@ test.describe('Canvas Interaction', () => {
     test('clicking empty canvas in SELECT mode clears selection', async ({ page }) => {
       // Add a node
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 400, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 400, y: 300 } })
       await page.waitForTimeout(100)
 
       // Verify node appears
@@ -30,7 +30,7 @@ test.describe('Canvas Interaction', () => {
       expect(fill).toBe('#2563eb')
 
       // Click empty canvas
-      await page.click('svg', { position: { x: 300, y: 200 } })
+      await page.click('#structure-canvas', { position: { x: 300, y: 200 } })
       await page.waitForTimeout(100)
 
       // Verify node is deselected (back to original color)
@@ -44,11 +44,11 @@ test.describe('Canvas Interaction', () => {
     test('ghost line appears when adding member', async ({ page }) => {
       // Add two nodes
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
       await page.waitForTimeout(50)
 
       // Switch to ADD_MEMBER
@@ -73,11 +73,11 @@ test.describe('Canvas Interaction', () => {
     test('ghost line clears when pressing Escape', async ({ page }) => {
       // Add two nodes
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
       await page.waitForTimeout(50)
 
       // Start adding member
@@ -109,7 +109,7 @@ test.describe('Canvas Interaction', () => {
     test('window selection (left→right) shows solid blue box', async ({ page }) => {
       // Add a node
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       // SELECT mode
@@ -134,7 +134,7 @@ test.describe('Canvas Interaction', () => {
     }) => {
       // Add a node
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       // SELECT mode
@@ -160,11 +160,11 @@ test.describe('Canvas Interaction', () => {
     test('member hit zone layer is created when members exist', async ({ page }) => {
       // Create two nodes
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 400, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 400, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 500, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 500, y: 300 } })
       await page.waitForTimeout(100)
 
       // Verify nodes were created
@@ -177,7 +177,7 @@ test.describe('Canvas Interaction', () => {
   // ─── Cursor Feedback ────────────────────────────────────────────────────────
   test.describe('Cursor feedback for tool modes', () => {
     test('load tools show crosshair cursor', async ({ page }) => {
-      const svg = page.locator('svg')
+      const svg = page.locator('#structure-canvas')
 
       // ADD_POINT_LOAD should be crosshair
       await page.keyboard.press('l')
@@ -199,7 +199,7 @@ test.describe('Canvas Interaction', () => {
     })
 
     test('tool mode cursors are appropriate', async ({ page }) => {
-      const svg = page.locator('svg')
+      const svg = page.locator('#structure-canvas')
 
       // SELECT mode is default
       await page.keyboard.press('s')
@@ -220,11 +220,11 @@ test.describe('Canvas Interaction', () => {
     test('member labels appear on canvas at member midpoint', async ({ page }) => {
       // Create two nodes
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
       await page.waitForTimeout(100)
 
       // Create member
@@ -246,11 +246,11 @@ test.describe('Canvas Interaction', () => {
     test('member labels have transform attribute with rotation', async ({ page }) => {
       // Create diagonal member (more obvious rotation)
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 250 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 250 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 350 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 350 } })
       await page.waitForTimeout(100)
 
       // Create member
@@ -273,11 +273,11 @@ test.describe('Canvas Interaction', () => {
     test('member label color changes when member is selected', async ({ page }) => {
       // Create member
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
       await page.waitForTimeout(100)
 
       await page.keyboard.press('m')
@@ -309,11 +309,11 @@ test.describe('Canvas Interaction', () => {
       // Create members at different angles: horizontal, vertical, diagonal
       // Horizontal
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 300, y: 200 } })
+      await page.click('#structure-canvas', { position: { x: 300, y: 200 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 400, y: 200 } })
+      await page.click('#structure-canvas', { position: { x: 400, y: 200 } })
       await page.waitForTimeout(100)
 
       await page.keyboard.press('m')
@@ -341,11 +341,11 @@ test.describe('Canvas Interaction', () => {
     test('member label size scales appropriately with zoom', async ({ page }) => {
       // Create member
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 350, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
       await page.waitForTimeout(50)
 
       await page.keyboard.press('n')
-      await page.click('svg', { position: { x: 450, y: 300 } })
+      await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
       await page.waitForTimeout(100)
 
       await page.keyboard.press('m')
@@ -363,13 +363,13 @@ test.describe('Canvas Interaction', () => {
       expect(initialFontSize).toBeTruthy()
 
       // Zoom in via scroll
-      const svg = page.locator('svg')
+      const svg = page.locator('#structure-canvas')
       await svg.evaluate(() => {
         const wheelEvent = new WheelEvent('wheel', {
           deltaY: -100,
           bubbles: true,
         })
-        document.querySelector('svg')?.dispatchEvent(wheelEvent)
+        document.querySelector('#structure-canvas')?.dispatchEvent(wheelEvent)
       })
       await page.waitForTimeout(200)
 

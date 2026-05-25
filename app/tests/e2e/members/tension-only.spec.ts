@@ -7,9 +7,9 @@ async function waitForGrid(page: Parameters<typeof test>[1] extends (...args: in
 // Create two nodes and a member between them (nodes at (200,200) and (400,300))
 async function createMember(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
   await page.keyboard.press('n')
-  await page.click('svg', { position: { x: 200, y: 200 } })
+  await page.click('#structure-canvas', { position: { x: 200, y: 200 } })
   await page.waitForTimeout(100)
-  await page.click('svg', { position: { x: 400, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 400, y: 300 } })
   await page.waitForTimeout(100)
   await page.keyboard.press('m')
   const circles = page.locator('circle.node')
@@ -24,7 +24,7 @@ async function selectMember(page: Parameters<typeof test>[1] extends (...args: i
   await page.keyboard.press('s')
   await page.waitForTimeout(50)
   // Click at midpoint of member between (200,200) and (400,300)
-  await page.click('svg', { position: { x: 300, y: 250 } })
+  await page.click('#structure-canvas', { position: { x: 300, y: 250 } })
   await page.waitForTimeout(200)
 }
 
@@ -36,9 +36,9 @@ test.describe('Tension-Only Members Feature', () => {
 
   test('add two nodes and create a normal member', async ({ page }) => {
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 200, y: 200 } })
+    await page.click('#structure-canvas', { position: { x: 200, y: 200 } })
     await page.waitForTimeout(200)
-    await page.click('svg', { position: { x: 400, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 400, y: 300 } })
     await page.waitForTimeout(200)
 
     await page.keyboard.press('m')
@@ -126,7 +126,7 @@ test.describe('Tension-Only Members Feature', () => {
     await page.waitForTimeout(300)
 
     // Deselect member so it shows the default (non-selected) color
-    await page.click('svg', { position: { x: 150, y: 400 } })
+    await page.click('#structure-canvas', { position: { x: 150, y: 400 } })
     await page.waitForTimeout(200)
 
     member = page.locator('line.member').first()
@@ -137,9 +137,9 @@ test.describe('Tension-Only Members Feature', () => {
   test('analysis runs successfully with tension-only member under tension', async ({ page }) => {
     // Create structure: two nodes at same height (horizontal member)
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 200, y: 200 } })
+    await page.click('#structure-canvas', { position: { x: 200, y: 200 } })
     await page.waitForTimeout(100)
-    await page.click('svg', { position: { x: 400, y: 200 } })
+    await page.click('#structure-canvas', { position: { x: 400, y: 200 } })
     await page.waitForTimeout(100)
 
     // Add support (pinned) to first node
@@ -165,7 +165,7 @@ test.describe('Tension-Only Members Feature', () => {
     // Mark as tension-only — click at midpoint of horizontal member
     await page.keyboard.press('s')
     await page.waitForTimeout(50)
-    await page.click('svg', { position: { x: 300, y: 200 } })
+    await page.click('#structure-canvas', { position: { x: 300, y: 200 } })
     await page.waitForTimeout(200)
 
     const checkbox = page.locator('input[type="checkbox"]').first()
@@ -173,7 +173,7 @@ test.describe('Tension-Only Members Feature', () => {
     await page.waitForTimeout(200)
 
     // Click canvas to deselect member, clear ep-handles, and restore keyboard focus
-    await page.click('svg', { position: { x: 150, y: 400 } })
+    await page.click('#structure-canvas', { position: { x: 150, y: 400 } })
     await page.waitForTimeout(100)
 
     // Add downward load to second node

@@ -209,6 +209,17 @@ function cancelEdit() {
       </button>
     </div>
 
+    <div class="border-t border-slate-100 pt-2">
+      <button
+        class="w-full py-1 text-xs font-medium rounded transition-colors bg-amber-500 text-white hover:bg-amber-600"
+        title="Generate self-weight from assigned member profiles (Dead load)"
+        data-testid="generate-self-weight"
+        @click="loads.generateSelfWeight()"
+      >
+        ⚖ Self-weight
+      </button>
+    </div>
+
     <div class="border-t border-slate-100 pt-2 space-y-1 max-h-48 overflow-y-auto">
       <div
         v-for="load in loads.loads"

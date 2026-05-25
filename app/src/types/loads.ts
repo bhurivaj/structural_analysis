@@ -19,6 +19,7 @@ export interface DistributedLoad {
   direction: 'local_y' | 'global_y'
   label?: string
   loadCase?: LoadCaseCategory
+  isSelfWeight?: boolean
 }
 
 export interface MomentLoad {

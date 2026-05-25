@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 
 // Convert SVG-relative coords to absolute page coords for page.mouse.*
 async function svgAbs(page: Page, svgX: number, svgY: number) {
-  const box = await page.locator('svg').boundingBox()
+  const box = await page.locator('#structure-canvas').boundingBox()
   return { x: box!.x + svgX, y: box!.y + svgY }
 }
 
@@ -20,11 +20,11 @@ async function rubberBand(page: Page, x1: number, y1: number, x2: number, y2: nu
 // Create 2 nodes at SVG (350,300) and (450,300), draw member between them
 async function createTwoNodeMember(page: Page) {
   await page.keyboard.press('n')
-  await page.click('svg', { position: { x: 350, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
   await page.waitForTimeout(100)
 
   await page.keyboard.press('n')
-  await page.click('svg', { position: { x: 450, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
   await page.waitForTimeout(100)
 
   await page.keyboard.press('m')
@@ -66,7 +66,7 @@ test.describe('Endpoint Reconnect (Member Drag)', () => {
     expect(await page.locator('circle.ep-handle').count()).toBe(2)
 
     // Click empty canvas to deselect
-    await page.click('svg', { position: { x: 200, y: 200 } })
+    await page.click('#structure-canvas', { position: { x: 200, y: 200 } })
     await page.waitForTimeout(100)
 
     expect(await page.locator('circle.ep-handle').count()).toBe(0)
@@ -85,15 +85,15 @@ test.describe('Endpoint Reconnect (Member Drag)', () => {
   test('drag endpoint shows ghost line and snap highlight', async ({ page }) => {
     // 3 nodes: N1@350,300 | N2@450,300 | N3@550,300
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 350, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 450, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 550, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 550, y: 300 } })
     await page.waitForTimeout(100)
 
     // Create member N1-N2
@@ -138,15 +138,15 @@ test.describe('Endpoint Reconnect (Member Drag)', () => {
   test('dragging endpoint to new node reconnects member', async ({ page }) => {
     // Nodes: N1@350,300 | N2@450,300 | N3@550,300
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 350, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 450, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 550, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 550, y: 300 } })
     await page.waitForTimeout(100)
 
     // Create member N1-N2
@@ -186,15 +186,15 @@ test.describe('Endpoint Reconnect (Member Drag)', () => {
   test('undo restores original endpoint after reconnect', async ({ page }) => {
     // Nodes: N1@350,300 | N2@450,300 | N3@550,300
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 350, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 450, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
     await page.waitForTimeout(100)
 
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 550, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 550, y: 300 } })
     await page.waitForTimeout(100)
 
     // Create member N1-N2

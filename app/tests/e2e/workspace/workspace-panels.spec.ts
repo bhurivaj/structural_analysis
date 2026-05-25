@@ -98,7 +98,7 @@ test.describe('Workspace zoom indicator', () => {
     const zoomIndicator = page.locator('.bottom-2.right-2')
     const before = (await zoomIndicator.textContent())?.trim()
 
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     await page.mouse.move(svgBox!.x + svgBox!.width / 2, svgBox!.y + svgBox!.height / 2)
     await page.mouse.wheel(0, -300)
 
@@ -142,7 +142,7 @@ test.describe('Support icons rendering', () => {
   })
 
   test('pinned support shows triangle polygon', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -165,7 +165,7 @@ test.describe('Support icons rendering', () => {
   })
 
   test('fixed support shows rect block', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -196,7 +196,7 @@ test.describe('Distributed load rendering', () => {
   })
 
   test('distributed load shows arrows in canvas after adding', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -237,7 +237,7 @@ test.describe('Roller support direction', () => {
     page: import('@playwright/test').Page,
     rollerAxis?: 'x' | 'y'
   ) {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
     await page.keyboard.press('n')
@@ -330,7 +330,7 @@ test.describe('Middle mouse button pan', () => {
   })
 
   test('middle mouse button can be pressed on canvas', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 

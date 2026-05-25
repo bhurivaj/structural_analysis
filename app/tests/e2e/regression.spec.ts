@@ -10,11 +10,11 @@ async function dismissResume(page: Parameters<typeof test>[1] extends (...args: 
 // Build a 3-node, 2-member structure using node locators for ADD_MEMBER
 async function buildTwoMemberStructure(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
   await page.keyboard.press('n')
-  await page.click('svg', { position: { x: 250, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 250, y: 300 } })
   await page.waitForTimeout(80)
-  await page.click('svg', { position: { x: 450, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
   await page.waitForTimeout(80)
-  await page.click('svg', { position: { x: 650, y: 300 } })
+  await page.click('#structure-canvas', { position: { x: 650, y: 300 } })
   await page.waitForTimeout(80)
 
   await page.keyboard.press('m')
@@ -116,7 +116,7 @@ test.describe('Bug fix: session resume dialog only on fresh start', () => {
 
     // Place a node so structure is non-empty in memory
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 350, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
     // Navigate away and back

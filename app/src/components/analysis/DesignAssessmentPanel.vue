@@ -156,7 +156,7 @@ function currentProfileClass(result: DesignCheckResult): string | undefined {
 </script>
 
 <template>
-  <div v-if="designResults.length > 0 || hasEnvelope || solver.result?.success" class="space-y-3">
+  <div v-if="designResults.length > 0 || hasEnvelope || solver.result?.success" data-testid="design-assessment-panel" class="space-y-3">
     <div class="flex items-center justify-between gap-2 flex-wrap">
       <div class="text-sm font-medium text-slate-700">
         Design Assessment

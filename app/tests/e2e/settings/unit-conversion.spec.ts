@@ -15,17 +15,17 @@ test.describe('Unit Conversion', () => {
   })
 
   test('import/export button is visible in navbar', async ({ page }) => {
-    await expect(page.getByRole('button', { name: '⬆⬇' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Import' })).toBeVisible()
   })
 
   test('import modal can be opened', async ({ page }) => {
-    await page.getByRole('button', { name: '⬆⬇' }).click()
+    await page.getByRole('button', { name: 'Import' }).click()
     await expect(page.getByText('Import Structure')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
   })
 
   test('import modal has paste and upload tabs', async ({ page }) => {
-    await page.getByRole('button', { name: '⬆⬇' }).click()
+    await page.getByRole('button', { name: 'Import' }).click()
     await expect(page.getByText('Paste JSON')).toBeVisible()
     await expect(page.getByText('Upload File')).toBeVisible()
   })
@@ -34,7 +34,7 @@ test.describe('Unit Conversion', () => {
     // Set up listener for download
     const downloadPromise = context.waitForEvent('download')
 
-    await page.getByRole('button', { name: '⬆⬇' }).click()
+    await page.getByRole('button', { name: 'Import' }).click()
     await page.getByRole('button', { name: 'Export Current' }).click()
 
     const download = await downloadPromise

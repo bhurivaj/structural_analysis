@@ -36,7 +36,7 @@ src/
 
 ## Current State
 
-**✅ Completed (27/27 features):**
+**✅ Completed (29/29 features):**
 
 1. **Interactive Canvas Workspace**
    - D3 draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
@@ -101,9 +101,8 @@ src/
 
 8. **Testing**
    - **132 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions
-   - **372 Vitest unit tests** across 22 test files covering solver, LRFD design checks, autoSize, steel profiles, load cases store, envelope analysis, trapezoidal distributed load, utility logic, **settingsStore unit conversions**, **useUndoRedo stack behavior**, **loadsStore remove-by-node/member branches**, **getSuggestion FAIL branches in designCheck**
-   - Coverage: **97.97% statements | 86.5% branches | 97.56% functions** (up from 96.75% / 80.8% / 94.97%)
-   - **Total: 504 tests passing** — comprehensive coverage of all features and edge cases
+   - **386 Vitest unit tests** across 23 test files — added **generateSelfWeight** (8 cases) and **computeEnvelopeDiagrams** (6 cases)
+   - **Total: 518 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
@@ -301,6 +300,20 @@ src/
     - **AlternativesRow** uses worst-case envelope forces when in envelope mode
     - Analysis page shows indigo banner with number of combinations analyzed
 
+28. **Self-weight Generation**
+    - **"⚖ Self-weight" button** in Workspace sidebar — generates downward distributed Dead loads from assigned member profiles
+    - **w = profile.mass × 9.81 / 1000 kN/m** (global_y direction, loadCase: 'D')
+    - **`isSelfWeight: true` flag** on DistributedLoad type — distinguishes SW loads from user loads
+    - **Idempotent:** removes existing SW loads before regenerating; user-added loads are untouched
+    - Skips members without assigned steel profiles; returns count of loads created
+
+29. **Envelope N/V/M Diagrams**
+    - **`computeEnvelopeDiagrams()`** in `envelopeAnalysis.ts` — computes per-station min/max N/V/M arrays across all combos
+    - **`MemberDiagramEnvelope`** type stores `{ memberId, stations, minN/maxN, minV/maxV, minM/maxM }` per member
+    - **DiagramPanel Active/Envelope toggle** — visible when envelope has been run; switches between single-combo line and envelope band
+    - **SVG band rendering:** filled indigo polygon between max and min curves + dashed min line for clarity
+    - Shows "Envelope across N combos" label when in envelope mode
+
 27. **Capacity Graphs**
     - **Table/Graph tabs** in each member's AlternativesRow
     - **D3 bar chart** plotting UR_combined vs alternative profiles, sorted by mass
@@ -333,8 +346,11 @@ Known limitations and missing functionality compared to a full-featured structur
 
 1. ~~**Envelope analysis**~~ — ✅ Implemented (feature 26)
 2. ~~**Capacity graphs**~~ — ✅ Implemented (feature 27)
-3. **Envelope N/V/M diagrams** — plot min/max force diagram bands across all combinations (visual overlay on DiagramPanel)
-4. **Self-weight generation** — auto-compute dead load from member length × profile mass/m × gravity
+3. ~~**Envelope N/V/M diagrams**~~ — ✅ Implemented (feature 28)
+4. ~~**Self-weight generation**~~ — ✅ Implemented (feature 29)
+5. ~~**Icon refresh (Undo/Redo/Import)**~~ — ✅ Done (WorkspaceView.vue + AppNavbar.vue use inline SVG from Heroicons)
+6. ~~**User Guide**~~ — ✅ Created `docs/USER_GUIDE.md` (end-user documentation covering all 16 sections)
+7. ~~**In-app Help page**~~ — ✅ Done (`/help` route + `HelpView.vue` with sidebar nav; "Help" added to AppNavbar)
 
 ---
 

@@ -21,5 +21,10 @@ export const router = createRouter({
       name: 'report',
       component: () => import('@/views/ReportView.vue'),
     },
+    {
+      path: '/help',
+      name: 'help',
+      component: () => import('@/views/HelpView.vue'),
+    },
   ],
 })

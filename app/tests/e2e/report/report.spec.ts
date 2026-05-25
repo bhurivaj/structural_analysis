@@ -5,7 +5,7 @@ async function setupAndRunAnalysis(page: Parameters<typeof test>[1] extends (...
   await page.goto('/workspace')
   await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
 
-  const svg = await page.locator('svg').boundingBox()
+  const svg = await page.locator('#structure-canvas').boundingBox()
   const cx = svg!.x + svg!.width / 2
   const cy = svg!.y + svg!.height / 2
 

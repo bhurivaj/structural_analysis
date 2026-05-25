@@ -14,7 +14,7 @@ test.describe('Load Tab Auto-switching', () => {
   test('clicking a point load switches to Loads tab', async ({ page }) => {
     // Add a node
     await page.keyboard.press('n')
-    await page.click('svg', { position: { x: 350, y: 300 } })
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
     // Add a point load via the tool

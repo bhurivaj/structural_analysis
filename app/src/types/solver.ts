@@ -30,6 +30,17 @@ export interface SolverResult {
   timestamp: number
 }
 
+export interface MemberDiagramEnvelope {
+  memberId: string
+  stations: number[]
+  minN: number[]
+  maxN: number[]
+  minV: number[]
+  maxV: number[]
+  minM: number[]
+  maxM: number[]
+}
+
 export interface MemberEnvelope {
   memberId: string
   maxTensionN: number
@@ -54,5 +65,6 @@ export interface EnvelopeResult {
   envelopes: MemberEnvelope[]
   perComboResults: PerComboResult[]
   combinationNames: Record<string, string>
+  diagramEnvelopes?: MemberDiagramEnvelope[]
   timestamp: number
 }

@@ -941,7 +941,7 @@ defineExpose({ captureSnapshot, fitToView })
 
 <template>
   <div class="w-full h-full relative">
-    <svg ref="svgRef" class="w-full h-full bg-white" :style="{ cursor: canvasCursor }" />
+    <svg ref="svgRef" id="structure-canvas" class="w-full h-full bg-white" :style="{ cursor: canvasCursor }" />
     <div v-if="selectionRect" :style="selectionOverlayStyle" />
   </div>
 </template>

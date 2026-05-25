@@ -22,7 +22,7 @@ test.describe('Workspace canvas tools', () => {
   })
 
   test('canvas SVG is rendered', async ({ page }) => {
-    await expect(page.locator('svg')).toBeVisible()
+    await expect(page.locator('#structure-canvas')).toBeVisible()
   })
 
   test('Run button is visible', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Workspace canvas pan and zoom', () => {
   test('PAN tool drag moves the grid', async ({ page }) => {
     const before = await page.locator('#grid-layer line').first().getAttribute('x1')
 
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -65,7 +65,7 @@ test.describe('Workspace canvas pan and zoom', () => {
   test('Space + drag pans the grid', async ({ page }) => {
     const before = await page.locator('#grid-layer line').first().getAttribute('x1')
 
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -83,7 +83,7 @@ test.describe('Workspace canvas pan and zoom', () => {
   test('scroll wheel zoom changes grid density', async ({ page }) => {
     const before = await page.locator('#grid-layer line').count()
 
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     await page.mouse.move(svgBox!.x + svgBox!.width / 2, svgBox!.y + svgBox!.height / 2)
     await page.mouse.wheel(0, -500)
 
@@ -93,7 +93,7 @@ test.describe('Workspace canvas pan and zoom', () => {
   })
 
   test('grid stays visible after zooming in (adaptive grid)', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
     // Zoom in substantially (5 scrolls)
@@ -133,7 +133,7 @@ test.describe('Canvas keyboard features', () => {
   })
 
   test('shift+drag node moves and completes without error', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 
@@ -176,7 +176,7 @@ test.describe('Node drag with loads attached', () => {
   // Fix: _isDragging flag skips drag-handler rebind in drawNodes() while drawAll() still runs
   // so forces/supports follow the node visually during drag.
   test('dragging a node with a load attached moves the node and load follows', async ({ page }) => {
-    const svgBox = await page.locator('svg').boundingBox()
+    const svgBox = await page.locator('#structure-canvas').boundingBox()
     const cx = svgBox!.x + svgBox!.width / 2
     const cy = svgBox!.y + svgBox!.height / 2
 

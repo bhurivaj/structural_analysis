@@ -63,9 +63,10 @@ test.describe('Envelope Analysis', () => {
     // Navigate to Analysis
     await page.getByRole('link', { name: /Analysis/i }).click()
 
-    // Toggle buttons should appear
-    await expect(page.getByRole('button', { name: 'Active' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Envelope' })).toBeVisible()
+    // Toggle buttons should appear in Design Assessment panel
+    const designPanel = page.getByTestId('design-assessment-panel')
+    await expect(designPanel.getByRole('button', { name: 'Active' })).toBeVisible()
+    await expect(designPanel.getByRole('button', { name: 'Envelope' })).toBeVisible()
   })
 
   test('switching to Envelope mode shows governing combo badges', async ({ page }) => {
@@ -77,7 +78,8 @@ test.describe('Envelope Analysis', () => {
     await page.waitForTimeout(1500)
 
     await page.getByRole('link', { name: /Analysis/i }).click()
-    await page.getByRole('button', { name: 'Envelope' }).click()
+    const designPanel = page.getByTestId('design-assessment-panel')
+    await designPanel.getByRole('button', { name: 'Envelope' }).click()
 
     // There should be at least one combo badge visible
     await expect(page.locator('.text-indigo-600').first()).toBeVisible()

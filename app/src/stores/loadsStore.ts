@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { Load, PointLoad, DistributedLoad, MomentLoad } from '@/types/loads'
 import { generateId } from '@/utils/idGen'
 import { useStructureStore } from './structureStore'
+import { useSteelProfileStore } from './steelProfileStore'
 
 export const useLoadsStore = defineStore('loads', () => {
   const loads = ref<Load[]>([])
@@ -71,6 +72,38 @@ export const useLoadsStore = defineStore('loads', () => {
     loads.value = [...data]
   }
 
+  function generateSelfWeight(): number {
+    const structureStore = useStructureStore()
+    const profileStore = useSteelProfileStore()
+
+    loads.value = loads.value.filter(
+      l => !(l.type === 'distributed_load' && (l as DistributedLoad).isSelfWeight),
+    )
+
+    let count = 0
+    for (const member of structureStore.members) {
+      if (!member.steelProfileId) continue
+      const profile = profileStore.profileById(member.steelProfileId)
+      if (!profile) continue
+
+      const w = profile.mass * 9.81 / 1000  // kg/m → kN/m (downward = negative)
+      const load: DistributedLoad = {
+        id: generateId(),
+        type: 'distributed_load',
+        label: `SW-${member.label ?? member.id.slice(0, 6)}`,
+        memberId: member.id,
+        w1: -w,
+        w2: -w,
+        direction: 'global_y',
+        loadCase: 'D',
+        isSelfWeight: true,
+      }
+      loads.value.push(load)
+      count++
+    }
+    return count
+  }
+
   return {
     loads,
     pointLoads,
@@ -88,5 +121,6 @@ export const useLoadsStore = defineStore('loads', () => {
     deleteLoad,
     clearLoads,
     loadSnapshot,
+    generateSelfWeight,
   }
 })
