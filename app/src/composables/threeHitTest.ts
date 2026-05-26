@@ -19,7 +19,7 @@ export function projectToScreen(
   }
 }
 
-/** Unproject mouse to a world plane at the given Z. Used for placing new elements. */
+/** Unproject mouse to a vertical XY plane at the given Z. Used in 2D mode. */
 export function clientToWorld(
   clientX: number, clientY: number,
   scene: SceneManager, canvas: HTMLElement,
@@ -34,6 +34,23 @@ export function clientToWorld(
   _plane.set(new THREE.Vector3(0, 0, 1), -planeZ)
   if (!_raycaster.ray.intersectPlane(_plane, _pt)) return null
   return { x: _pt.x, y: _pt.y, z: planeZ }
+}
+
+/** Unproject mouse to a horizontal XZ plane at the given Y elevation. Used in 3D mode. */
+export function clientToWorldXZ(
+  clientX: number, clientY: number,
+  scene: SceneManager, canvas: HTMLElement,
+  planeY = 0
+): { x: number; y: number; z: number } | null {
+  const cr = canvas.getBoundingClientRect()
+  _ndc.set(
+    ((clientX - cr.left) / cr.width) * 2 - 1,
+    -((clientY - cr.top) / cr.height) * 2 + 1
+  )
+  _raycaster.setFromCamera(_ndc, scene.camera)
+  _plane.set(new THREE.Vector3(0, 1, 0), -planeY)
+  if (!_raycaster.ray.intersectPlane(_plane, _pt)) return null
+  return { x: _pt.x, y: planeY, z: _pt.z }
 }
 
 /** @deprecated Use screen-space hit functions instead. */

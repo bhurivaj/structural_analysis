@@ -19,7 +19,7 @@ export const useStructureStore = defineStore('structure', () => {
   )
 
   function addNode(data: Omit<StructureNode, 'id'>): StructureNode {
-    const node: StructureNode = { id: generateId(), label: `N${nodes.value.length + 1}`, ...data }
+    const node: StructureNode = { id: generateId(), label: `N${nodes.value.length + 1}`, z: 0, ...data }
     nodes.value.push(node)
     return node
   }
@@ -112,7 +112,7 @@ export const useStructureStore = defineStore('structure', () => {
   }
 
   function loadSnapshot(data: { nodes: StructureNode[]; members: Member[]; structureType: StructureType }) {
-    nodes.value = [...data.nodes]
+    nodes.value = data.nodes.map(n => ({ z: 0, ...n }))
     members.value = [...data.members]
     structureType.value = data.structureType
     selectedNodeIds.value = []

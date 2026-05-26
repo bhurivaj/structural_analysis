@@ -16,6 +16,7 @@ export class SceneManager {
   private animId = 0
   private ro: ResizeObserver
   private frameCallbacks: Array<() => void> = []
+  private axesHelper: THREE.AxesHelper | null = null
 
   get camera(): THREE.Camera {
     return this._mode === '2d' ? this.orthoCamera : this.perspCamera
@@ -77,13 +78,46 @@ export class SceneManager {
       // Place camera mostly along +Z so X→screen-right, Y→screen-up (XY plane face-on)
       this.perspCamera.position.set(target.x + dist * 0.2, target.y + dist * 0.3, target.z + dist)
       this.perspCamera.lookAt(target)
+      this.axesHelper = new THREE.AxesHelper(INITIAL_FRUSTUM_H / 4)
+      this.scene.add(this.axesHelper)
     } else {
       this.orthoCamera.position.set(target.x, target.y, 10)
       this.resize()
+      if (this.axesHelper) { this.scene.remove(this.axesHelper); this.axesHelper = null }
     }
 
     this.controls = this.makeControls()
     this.controls.target.copy(target)
+    this.controls.update()
+  }
+
+  setPresetView(view: 'top' | 'front' | 'side' | 'iso') {
+    if (this._mode !== '3d') return
+    const target = this.controls.target
+    const rh = this.orthoCamera.top - this.orthoCamera.bottom
+    const d = Math.max(rh, 10) * 1.5
+
+    switch (view) {
+      case 'front':
+        this.perspCamera.position.set(target.x + d * 0.2, target.y + d * 0.3, target.z + d)
+        this.perspCamera.up.set(0, 1, 0)
+        break
+      case 'top':
+        this.perspCamera.position.set(target.x, target.y + d, target.z)
+        this.perspCamera.up.set(0, 0, -1)
+        break
+      case 'side':
+        this.perspCamera.position.set(target.x + d, target.y, target.z)
+        this.perspCamera.up.set(0, 1, 0)
+        break
+      case 'iso': {
+        const t = d / Math.sqrt(3)
+        this.perspCamera.position.set(target.x + t, target.y + t, target.z + t)
+        this.perspCamera.up.set(0, 1, 0)
+        break
+      }
+    }
+    this.perspCamera.lookAt(target)
     this.controls.update()
   }
 
@@ -146,6 +180,7 @@ export class SceneManager {
     cancelAnimationFrame(this.animId)
     this.ro.disconnect()
     this.controls.dispose()
+    if (this.axesHelper) this.scene.remove(this.axesHelper)
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }

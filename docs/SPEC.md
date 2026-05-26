@@ -48,7 +48,7 @@ src/
      - `SceneManager.ts` — dual cameras (OrthographicCamera 2D / PerspectiveCamera 3D), OrbitControls, resize loop
      - `StructureRenderer.ts` — nodes (Points), members (LineSegments), deformed shape (LineDashedMaterial), ep handles, ghost line, snap ring
      - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls
-     - `threeHitTest.ts` — raycaster → z=0 plane for screen→world, node/member hit tests
+     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane, 2D), `clientToWorldXZ` (horizontal XZ plane, 3D), node/member screen-space hit tests
      - **2D/3D camera toggle button** (top-right of canvas) — switches OrthographicCamera ↔ PerspectiveCamera with `SceneManager.setMode()`
    - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive power-of-2 grid visible at all zoom levels
    - **Shift+drag node** — snap to nearest integer world unit
@@ -362,9 +362,21 @@ Known limitations and missing functionality compared to a full-featured structur
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **Phase 1** | Three.js visual/interaction replacement (2D parity) | ✅ Done |
-| **Phase 2** | Add `z: number` to `StructureNode`; 3D node placement + camera | 🔲 Next |
+| **Phase 2** | 3D node placement, work plane Z, camera presets + axes gizmo | ✅ Done |
 | **Phase 3** | 3D FEM solver — frame 6-DOF/node (ux,uy,uz,rx,ry,rz), truss 3-DOF/node | 🔲 |
 | **Phase 4** | 3D loads (Fz, out-of-plane dist loads, supports with 3-axis constraints) | 🔲 |
+
+**Phase 2 status (✅ Done):**
+- ✅ `workplaneZ` shared state — `useCanvasMode.ts` (`workplaneZ` ref + `setWorkplaneZ`); all composable callers share the same module-level ref
+- ✅ `structureStore.addNode` — always initializes `z: 0` by default; `loadSnapshot` backfills z for legacy sessions
+- ✅ `useCanvasKeys.ts` (new composable) — keyboard handlers extracted from `useThreeInteraction.ts` (ESCAPE via `onEscape` callback); keeps interaction file under 300 lines
+- ✅ Node placement at work plane Z — `ADD_NODE` in 3D mode projects onto horizontal XZ plane via `clientToWorldXZ(planeY=workplaneZ)`, snaps X+Z, stores `{ x, y: workplaneZ, z }`
+- ✅ Node drag at node's own plane — `_nodeDrag` stores `{ planeVal, is3d, origX, origY, origZ, startWx, startW2 }`; in 3D drag updates X+Z (keeps Y/elevation constant); in 2D drag updates X+Y
+- ✅ Grid at workplane Y elevation — `GridRenderer.update(sceneMan, workplaneZ)` places horizontal `GridHelper` (XZ plane, no rotation) via `helper.position.y = workplaneZ`; rebuilds when elevation changes
+- ✅ Preset camera views — `SceneManager.setPresetView('top'|'front'|'side'|'iso')` with proper `camera.up` for gimbal-lock-safe top view
+- ✅ Axes gizmo — `THREE.AxesHelper` added/removed via `SceneManager.setMode()` lifecycle (appears in 3D only)
+- ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; renders only in 3D mode (`v-if="cameraMode === '3d'"`) at `absolute top-12 right-2`
+- ✅ Tests: 408 unit tests (25 files) + 8 E2E tests in `workplane-3d.spec.ts`
 
 **Phase 1d status:**
 - ✅ Grid rendering — `GridRenderer.ts` adaptive power-of-2 grid in 2D + `THREE.GridHelper` (XY plane) in 3D + amber origin marker; runs every frame via `SceneManager.addFrameCallback()`

@@ -5,6 +5,7 @@ import { StructureRenderer } from './three/StructureRenderer'
 import { GridRenderer } from './three/GridRenderer'
 import { LoadsRenderer } from './three/LoadsRenderer'
 import { SupportRenderer } from './three/SupportRenderer'
+import WorkplaneControls from './WorkplaneControls.vue'
 import { projectToScreen } from '@/composables/threeHitTest'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSolverStore } from '@/stores/solverStore'
@@ -17,7 +18,7 @@ type LabelItem = { key: string; text: string; x: number; y: number }
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const labels = ref<LabelItem[]>([])
-const { cameraMode, setCameraMode } = useCanvasMode()
+const { cameraMode, setCameraMode, workplaneZ } = useCanvasMode()
 let sceneMan: SceneManager | null = null
 let structRend: StructureRenderer | null = null
 let gridRend: GridRenderer | null = null
@@ -96,6 +97,10 @@ function toggleCameraMode() {
   suppRend?.update(structure.nodes, next)
 }
 
+function handlePresetView(view: 'top' | 'front' | 'side' | 'iso') {
+  sceneMan?.setPresetView(view)
+}
+
 onMounted(() => {
   sceneMan = new SceneManager(containerRef.value!)
   structRend = new StructureRenderer(sceneMan.scene)
@@ -103,7 +108,7 @@ onMounted(() => {
   loadsRend = new LoadsRenderer(sceneMan.scene)
   suppRend = new SupportRenderer(sceneMan.scene)
   sceneMan.addFrameCallback(() => {
-    if (sceneMan && gridRend) gridRend.update(sceneMan)
+    if (sceneMan && gridRend) gridRend.update(sceneMan, workplaneZ.value)
     updateLabels()
   })
   attach(sceneMan, structRend, sceneMan.renderer.domElement)
@@ -162,5 +167,10 @@ defineExpose({ captureSnapshot, fitToView })
     >
       {{ cameraMode === '2d' ? '2D' : '3D' }}
     </button>
+    <WorkplaneControls
+      v-if="cameraMode === '3d'"
+      :on-preset-view="handlePresetView"
+      class="absolute top-12 right-2 z-10"
+    />
   </div>
 </template>

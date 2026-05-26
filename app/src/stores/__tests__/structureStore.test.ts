@@ -74,6 +74,24 @@ describe('structureStore', () => {
       expect(n1.label).toBe('N1')
       expect(n2.label).toBe('N2')
     })
+
+    it('defaults z to 0 when not provided', () => {
+      const store = useStructureStore()
+      const node = store.addNode({ x: 0, y: 0, support: 'free' })
+      expect(node.z).toBe(0)
+    })
+
+    it('uses provided z value', () => {
+      const store = useStructureStore()
+      const node = store.addNode({ x: 0, y: 0, z: 5, support: 'free' })
+      expect(node.z).toBe(5)
+    })
+
+    it('accepts negative z values', () => {
+      const store = useStructureStore()
+      const node = store.addNode({ x: 0, y: 0, z: -3, support: 'free' })
+      expect(node.z).toBe(-3)
+    })
   })
 
   // ── updateNode ──────────────────────────────────────────────────────────────
@@ -421,6 +439,28 @@ describe('structureStore', () => {
       store.selectNode(store.nodes[0].id)
       store.loadSnapshot({ nodes: [], members: [], structureType: 'frame' })
       expect(store.selectedNodeIds).toEqual([])
+    })
+
+    it('backfills z=0 for nodes missing z', () => {
+      const store = useStructureStore()
+      const snap = {
+        nodes: [{ id: 'n1', x: 1, y: 2, support: 'free' as const }],
+        members: [] as Member[],
+        structureType: 'frame' as const,
+      }
+      store.loadSnapshot(snap)
+      expect(store.nodes[0].z).toBe(0)
+    })
+
+    it('preserves existing z values from snapshot', () => {
+      const store = useStructureStore()
+      const snap = {
+        nodes: [{ id: 'n1', x: 1, y: 2, z: 7, support: 'free' as const }],
+        members: [] as Member[],
+        structureType: 'frame' as const,
+      }
+      store.loadSnapshot(snap)
+      expect(store.nodes[0].z).toBe(7)
     })
   })
 })

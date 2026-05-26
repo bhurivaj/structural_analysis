@@ -6,6 +6,7 @@ export class GridRenderer {
   private gridLines: THREE.LineSegments | null = null
   private originMarker: THREE.LineSegments | null = null
   private lastMode: string | null = null
+  private lastZ: number = 0
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
@@ -26,17 +27,19 @@ export class GridRenderer {
     this.scene.add(this.originMarker)
   }
 
-  update(sceneMan: SceneManager) {
+  update(sceneMan: SceneManager, workplaneZ = 0) {
     if (sceneMan.mode === '3d') {
-      // Build once; reuse until mode changes
-      if (this.lastMode !== '3d') {
+      const needRebuild = this.lastMode !== '3d' || this.lastZ !== workplaneZ
+      if (needRebuild) {
         this.remove(this.gridLines)
         const helper = new THREE.GridHelper(100, 100, 0x94a3b8, 0xe2e8f0)
-        helper.rotation.x = Math.PI / 2  // XZ → XY plane
+        // No rotation — GridHelper lies in XZ plane by default (horizontal, visible from TOP)
+        helper.position.y = workplaneZ    // slide to floor elevation
         helper.renderOrder = -1
         this.gridLines = helper
         this.scene.add(this.gridLines)
         this.lastMode = '3d'
+        this.lastZ = workplaneZ
       }
       return
     }
