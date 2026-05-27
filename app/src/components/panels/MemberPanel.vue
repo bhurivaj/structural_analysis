@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSteelProfileStore } from '@/stores/steelProfileStore'
+import { memberPropsFromProfile } from '@/utils/memberProps'
 import NumberInput from '@/components/ui/NumberInput.vue'
 
 const structure = useStructureStore()
@@ -29,12 +30,7 @@ function assignProfile(profileId: string) {
   if (!selectedMember.value) return
   const profile = profileStore.profileById(profileId)
   if (!profile) return
-  structure.updateMember(selectedMember.value.id, {
-    steelProfileId: profileId,
-    E: profile.E,
-    A: profile.A,
-    I: profile.Ix,
-  })
+  structure.updateMember(selectedMember.value.id, memberPropsFromProfile(profile))
 }
 
 function applyBulkProfile() {
@@ -42,12 +38,7 @@ function applyBulkProfile() {
   const profile = profileStore.profileById(bulkProfileId.value)
   if (!profile) return
   for (const id of structure.selectedMemberIds) {
-    structure.updateMember(id, {
-      steelProfileId: profile.id,
-      E: profile.E,
-      A: profile.A,
-      I: profile.Ix,
-    })
+    structure.updateMember(id, memberPropsFromProfile(profile))
   }
 }
 

@@ -24,6 +24,8 @@ export class SceneManager {
 
   get mode(): CameraMode { return this._mode }
 
+  get orthoZoom(): number { return this.orthoCamera.zoom }
+
   constructor(container: HTMLElement) {
     this.container = container
 

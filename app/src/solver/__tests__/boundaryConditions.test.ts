@@ -13,6 +13,10 @@ function makeF(n: number, val = 1): number[] {
   return new Array(n).fill(val)
 }
 
+// 3D DOF layout — frame node: [ux=0, uy=1, uz=2, θx=3, θy=4, θz=5]
+// 2 frame nodes → nDof=12: A=[0..5], B=[6..11]
+// 2 truss nodes → nDof=6:  A=[0..2], B=[3..5]
+
 describe('applyBoundaryConditions', () => {
   describe('frame structure — fixed support', () => {
     const nodes: StructureNode[] = [
@@ -20,7 +24,7 @@ describe('applyBoundaryConditions', () => {
       { id: 'B', x: 5, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const n = 6
+    const n = 12
     const K = makeIdentityK(n)
     const F = makeF(n)
 
@@ -34,17 +38,17 @@ describe('applyBoundaryConditions', () => {
       expect(F[0]).toBe(1)
     })
 
-    it('constrains all 3 DOFs of the fixed node', () => {
-      // Fixed node A → DOFs 0, 1, 2
-      for (let i = 0; i < 3; i++) {
+    it('constrains all 6 DOFs of the fixed frame node', () => {
+      // Fixed node A → DOFs 0..5 (ux,uy,uz,θx,θy,θz)
+      for (let i = 0; i < 6; i++) {
         expect(Fbc[i]).toBe(0)
         expect(Kbc[i][i]).toBeGreaterThan(1e10)
       }
     })
 
     it('leaves free node DOFs unchanged', () => {
-      // Free node B → DOFs 3, 4, 5
-      for (let i = 3; i < 6; i++) {
+      // Free node B → DOFs 6..11
+      for (let i = 6; i < 12; i++) {
         expect(Fbc[i]).toBe(1)
         expect(Kbc[i][i]).toBe(1)
       }
@@ -57,25 +61,31 @@ describe('applyBoundaryConditions', () => {
       { id: 'B', x: 3, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const n = 6
+    const n = 12
     const K = makeIdentityK(n)
     const F = makeF(n)
 
     const { Kbc, Fbc } = applyBoundaryConditions(K, F, nodes, dofMap, 'frame')
 
-    it('constrains translation DOFs 0 and 1, not rotation DOF 2', () => {
+    it('constrains all translation DOFs 0, 1, 2 (ux, uy, uz)', () => {
       expect(Fbc[0]).toBe(0)
       expect(Fbc[1]).toBe(0)
-      expect(Fbc[2]).toBe(1)  // rotation remains free
+      expect(Fbc[2]).toBe(0)
     })
 
-    it('K[0][0] and K[1][1] are penalized', () => {
+    it('K[0][0], K[1][1], K[2][2] are penalized', () => {
       expect(Kbc[0][0]).toBeGreaterThan(1e10)
       expect(Kbc[1][1]).toBeGreaterThan(1e10)
+      expect(Kbc[2][2]).toBeGreaterThan(1e10)
     })
 
-    it('K[2][2] is not penalized (pinned allows rotation)', () => {
-      expect(Kbc[2][2]).toBe(1)
+    it('rotation DOFs 3,4,5 remain free (pinned allows rotation)', () => {
+      expect(Kbc[3][3]).toBe(1)
+      expect(Kbc[4][4]).toBe(1)
+      expect(Kbc[5][5]).toBe(1)
+      expect(Fbc[3]).toBe(1)
+      expect(Fbc[4]).toBe(1)
+      expect(Fbc[5]).toBe(1)
     })
   })
 
@@ -85,7 +95,7 @@ describe('applyBoundaryConditions', () => {
       { id: 'B', x: 5, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const n = 6
+    const n = 12
     const K = makeIdentityK(n)
     const F = makeF(n)
 
@@ -101,19 +111,25 @@ describe('applyBoundaryConditions', () => {
       expect(Kbc[0][0]).toBe(1)
     })
 
-    it('leaves DOF 2 (rotation) free', () => {
+    it('leaves DOF 2 (z-translation) free', () => {
       expect(Fbc[2]).toBe(1)
       expect(Kbc[2][2]).toBe(1)
+    })
+
+    it('leaves DOF 5 (θz rotation) free', () => {
+      expect(Fbc[5]).toBe(1)
+      expect(Kbc[5][5]).toBe(1)
     })
   })
 
   describe('frame structure — roller support (x-axis)', () => {
     const nodes: StructureNode[] = [
       { id: 'A', x: 0, y: 0, support: 'roller', rollerAxis: 'x' },
+      { id: 'B', x: 5, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const K = makeIdentityK(3)
-    const F = makeF(3)
+    const K = makeIdentityK(12)
+    const F = makeF(12)
 
     const { Kbc, Fbc } = applyBoundaryConditions(K, F, nodes, dofMap, 'frame')
 
@@ -122,7 +138,29 @@ describe('applyBoundaryConditions', () => {
       expect(Kbc[0][0]).toBeGreaterThan(1e10)
     })
 
-    it('leaves DOF 1 free', () => {
+    it('leaves DOF 1 (y-translation) free', () => {
+      expect(Fbc[1]).toBe(1)
+      expect(Kbc[1][1]).toBe(1)
+    })
+  })
+
+  describe('frame structure — roller support (z-axis)', () => {
+    const nodes: StructureNode[] = [
+      { id: 'A', x: 0, y: 0, support: 'roller', rollerAxis: 'z' },
+      { id: 'B', x: 5, y: 0, support: 'free' },
+    ]
+    const dofMap = buildDofMap(nodes, 'frame')
+    const K = makeIdentityK(12)
+    const F = makeF(12)
+
+    const { Kbc, Fbc } = applyBoundaryConditions(K, F, nodes, dofMap, 'frame')
+
+    it('constrains only DOF 2 (z-translation)', () => {
+      expect(Fbc[2]).toBe(0)
+      expect(Kbc[2][2]).toBeGreaterThan(1e10)
+    })
+
+    it('leaves DOF 1 (y-translation) free', () => {
       expect(Fbc[1]).toBe(1)
       expect(Kbc[1][1]).toBe(1)
     })
@@ -134,20 +172,22 @@ describe('applyBoundaryConditions', () => {
       { id: 'B', x: 4, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'truss')
-    const n = 4
+    const n = 6
     const K = makeIdentityK(n)
     const F = makeF(n)
 
     const { Kbc, Fbc } = applyBoundaryConditions(K, F, nodes, dofMap, 'truss')
 
-    it('constrains DOFs 0 and 1 for truss pinned node', () => {
+    it('constrains DOFs 0, 1, 2 for truss pinned node (ux,uy,uz)', () => {
       expect(Fbc[0]).toBe(0)
       expect(Fbc[1]).toBe(0)
+      expect(Fbc[2]).toBe(0)
     })
 
-    it('leaves free node DOFs unchanged', () => {
-      expect(Fbc[2]).toBe(1)
+    it('leaves free node DOFs unchanged (DOFs 3,4,5)', () => {
       expect(Fbc[3]).toBe(1)
+      expect(Fbc[4]).toBe(1)
+      expect(Fbc[5]).toBe(1)
     })
   })
 
@@ -157,7 +197,7 @@ describe('applyBoundaryConditions', () => {
       { id: 'B', x: 1, y: 0, support: 'free' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const n = 6
+    const n = 12
     const K = makeIdentityK(n)
     const F = makeF(n)
 
@@ -177,13 +217,12 @@ describe('applyBoundaryConditions', () => {
       { id: 'A', x: 0, y: 0, support: 'fixed' },
     ]
     const dofMap = buildDofMap(nodes, 'frame')
-    const K = makeIdentityK(3)
-    const F = makeF(3)
+    const K = makeIdentityK(6)
+    const F = makeF(6)
 
     const { Kbc } = applyBoundaryConditions(K, F, nodes, dofMap, 'frame')
 
     it('penalty is 1e12 times original diagonal', () => {
-      // Original K[0][0] = 1, after penalty = 1 * 1e12
       expect(Kbc[0][0]).toBeCloseTo(1e12, 0)
     })
   })

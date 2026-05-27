@@ -6,7 +6,7 @@ import { useStructureStore } from '@/stores/structureStore'
 const solver = useSolverStore()
 const structure = useStructureStore()
 
-const selectedDiagramMode = ref<'N' | 'V' | 'M'>('M')
+const selectedDiagramMode = ref<'N' | 'V' | 'M' | 'Vz' | 'My' | 'T'>('M')
 const selectedMemberIdx = ref(0)
 const showEnvelope = ref(false)
 
@@ -30,11 +30,18 @@ const envelopeDiagram = computed(() => {
   return solver.envelopeResult!.diagramEnvelopes!.find(d => d.memberId === currentMemberId.value) ?? null
 })
 
+const has3dForces = computed(() =>
+  solver.result?.memberResults.some(mr => mr.Vz.some(v => Math.abs(v) > 1e-9)) ?? false
+)
+
 function getValues() {
   if (!currentMemberResult.value) return []
   const mode = selectedDiagramMode.value
-  if (mode === 'N') return currentMemberResult.value.N
-  if (mode === 'V') return currentMemberResult.value.V
+  if (mode === 'N')  return currentMemberResult.value.N
+  if (mode === 'V')  return currentMemberResult.value.V
+  if (mode === 'Vz') return currentMemberResult.value.Vz
+  if (mode === 'My') return currentMemberResult.value.My
+  if (mode === 'T')  return currentMemberResult.value.T
   return currentMemberResult.value.M
 }
 
@@ -43,6 +50,7 @@ function getEnvelopeMin() {
   const mode = selectedDiagramMode.value
   if (mode === 'N') return envelopeDiagram.value.minN
   if (mode === 'V') return envelopeDiagram.value.minV
+  if (mode === 'Vz' || mode === 'My' || mode === 'T') return []  // envelope not tracked for 3D modes yet
   return envelopeDiagram.value.minM
 }
 
@@ -51,6 +59,7 @@ function getEnvelopeMax() {
   const mode = selectedDiagramMode.value
   if (mode === 'N') return envelopeDiagram.value.maxN
   if (mode === 'V') return envelopeDiagram.value.maxV
+  if (mode === 'Vz' || mode === 'My' || mode === 'T') return []  // envelope not tracked for 3D modes yet
   return envelopeDiagram.value.maxM
 }
 
@@ -100,7 +109,7 @@ const bandPoints = computed(() => {
           </option>
         </select>
 
-        <div class="flex gap-1">
+        <div class="flex gap-1 flex-wrap">
           <button
             v-for="mode in (['N', 'V', 'M'] as const)"
             :key="mode"
@@ -112,6 +121,20 @@ const bandPoints = computed(() => {
           >
             {{ mode }}
           </button>
+          <template v-if="has3dForces">
+            <span class="w-px bg-slate-300 self-stretch mx-0.5" />
+            <button
+              v-for="mode in (['Vz', 'My', 'T'] as const)"
+              :key="mode"
+              class="px-2 py-1 text-xs rounded transition-colors"
+              :class="selectedDiagramMode === mode
+                ? 'bg-violet-600 text-white'
+                : 'bg-white border border-slate-300 text-slate-500 hover:bg-slate-100'"
+              @click="selectedDiagramMode = mode"
+            >
+              {{ mode }}
+            </button>
+          </template>
         </div>
       </div>
 

@@ -85,6 +85,7 @@ const supportOptions: { value: SupportType; label: string }[] = [
       >
         <option value="y">Vertical (Y)</option>
         <option value="x">Horizontal (X)</option>
+        <option value="z">Out-of-Plane (Z)</option>
       </select>
     </label>
 

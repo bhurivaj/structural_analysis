@@ -2,8 +2,8 @@ import type { StructureNode } from '@/types/structure'
 import type { StructureType } from '@/types/structure'
 
 export const DOF_PER_NODE: Record<StructureType, number> = {
-  frame: 3,
-  truss: 2,
+  frame: 6,
+  truss: 3,
 }
 
 export function buildDofMap(nodes: StructureNode[], structureType: StructureType): Map<string, number[]> {

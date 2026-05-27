@@ -27,7 +27,7 @@ export class StructureRenderer {
     members: Member[],
     selectedNodeIds: string[],
     selectedMemberIds: string[],
-    deformedPositions?: Map<string, { ux: number; uy: number }>,
+    deformedPositions?: Map<string, { ux: number; uy: number; uz: number }>,
     deformedScale = 1
   ) {
     this.updateNodes(nodes, selectedNodeIds)
@@ -92,7 +92,7 @@ export class StructureRenderer {
   private updateDeformed(
     members: Member[],
     nodes: StructureNode[],
-    deformed?: Map<string, { ux: number; uy: number }>,
+    deformed?: Map<string, { ux: number; uy: number; uz: number }>,
     scale = 1
   ) {
     this.remove(this.deformedLines)
@@ -111,10 +111,10 @@ export class StructureRenderer {
       const b = i * 6
       pos[b] = n1.x + (d1?.ux ?? 0) * scale
       pos[b + 1] = n1.y + (d1?.uy ?? 0) * scale
-      pos[b + 2] = 0.01
+      pos[b + 2] = (n1.z ?? 0) + (d1?.uz ?? 0) * scale
       pos[b + 3] = n2.x + (d2?.ux ?? 0) * scale
       pos[b + 4] = n2.y + (d2?.uy ?? 0) * scale
-      pos[b + 5] = 0.01
+      pos[b + 5] = (n2.z ?? 0) + (d2?.uz ?? 0) * scale
     })
 
     const geo = new THREE.BufferGeometry()

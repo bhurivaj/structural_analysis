@@ -1,6 +1,6 @@
 import type { StructureNode, Member, StructureType } from '@/types/structure'
-import { memberLength, memberAngle } from '@/utils/geometry'
-import { frameElementStiffness, trussElementStiffness } from './elementStiffness'
+import { memberDirectionCosines, localAxisFrame } from './geometry3D'
+import { frameElement3D, trussElement3D } from './elementStiffness3D'
 import { totalDof } from './dof'
 
 // All units in kN and meters. E in kN/m², A in m², I in m⁴.
@@ -20,20 +20,28 @@ export function assembleGlobalK(
   for (const member of members) {
     const n1 = nodes.find(n => n.id === member.startNodeId)!
     const n2 = nodes.find(n => n.id === member.endNodeId)!
-    const L = memberLength(n1.x, n1.y, n2.x, n2.y)
-    const angle = memberAngle(n1.x, n1.y, n2.x, n2.y)
+    const { L, l, m, n } = memberDirectionCosines(n1, n2)
 
     const E = mpaToKnM2(member.E)
     const A = mmToM2(member.A)
-    const I = mm4ToM4(member.I)
+    const G = E / 2.6  // shear modulus (ν ≈ 0.3 for steel)
 
     const d1 = dofMap.get(member.startNodeId)!
     const d2 = dofMap.get(member.endNodeId)!
     const dofs = [...d1, ...d2]
 
-    const ke = structureType === 'truss' || member.isTruss
-      ? trussElementStiffness(L, E, A, angle)
-      : frameElementStiffness(L, E, A, I, angle)
+    const isTruss = structureType === 'truss' || member.isTruss
+
+    let ke: number[][]
+    if (isTruss) {
+      ke = trussElement3D(L, E, A, l, m, n)
+    } else {
+      const Iz = mm4ToM4(member.Iz ?? member.I)          // strong axis: gravity/XY bending
+      const Iy = mm4ToM4(member.Iy ?? member.I * 0.1)   // weak axis:   lateral/XZ bending
+      const J  = mm4ToM4(member.J  ?? member.I * 0.05)
+      const { ex, ey, ez } = localAxisFrame(l, m, n)
+      ke = frameElement3D(L, E, A, Iy, Iz, G, J, ex, ey, ez)
+    }
 
     for (let i = 0; i < dofs.length; i++)
       for (let j = 0; j < dofs.length; j++)

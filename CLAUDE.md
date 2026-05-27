@@ -14,6 +14,7 @@ A web app for structural engineers to perform structural analysis and generate c
 | State        | Pinia        |
 | Routing      | Vue Router   |
 | Styling      | Tailwind CSS |
+| 3D Canvas    | Three.js     |
 | Charts/Viz   | D3.js        |
 | Unit Testing | Vitest       |
 | E2E Testing  | Playwright   |
@@ -70,7 +71,7 @@ Data flows: User Input → `from*()` → Store (internal units) → Display `to*
 
 See `./docs/` for detailed guides:
 
-1. **[CANVAS_ARCHITECTURE.md](docs/CANVAS_ARCHITECTURE.md)** — Pan/zoom, grid, D3 zoom, keyboard shortcuts
+1. **[CANVAS_ARCHITECTURE.md](docs/CANVAS_ARCHITECTURE.md)** — Three.js WebGL canvas, SceneManager, renderers, interaction composables, keyboard shortcuts
 2. **[FEATURES.md](docs/FEATURES.md)** — All feature implementations (node labels, deformed shape, multi-select, tension-only, etc.)
 3. **[DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md)** — LRFD design assessment, utilization ratios, AISC 360
 4. **[UNIT_SYSTEM.md](docs/UNIT_SYSTEM.md)** — Settings store, unit conversion, data contract
@@ -125,41 +126,43 @@ See `./docs/` for detailed guides:
 
 ---
 
-## Recent Fixes & Improvements (May 2026)
+## Recent Work (May 2026)
 
-**Canvas & Interaction:**
-- Fixed ghost line Y-coordinate negation (member/endpoint preview now draws in correct direction)
-- Fixed fit-to-view button: uses actual SVG dimensions, correct Y-coordinate formula
-- Canvas origin (0,0) now centers at screen on startup
-- Added origin marker crosshair visible at world (0,0)
-- Implemented adaptive power-of-2 grid sizing — grid stays visible at all zoom levels
-- G key now toggles snap-to-grid; ADD_NODE snaps when snap is active
-- Shift+drag node snaps to nearest integer world unit
-- Middle-mouse button drag now pans in any mode
+**Phase 1 — Three.js Canvas (replaces D3/SVG):**
+- Canvas fully rebuilt to Three.js WebGL: `SceneManager`, dual cameras (2D ortho / 3D perspective), `OrbitControls`
+- Renderers: `StructureRenderer` (nodes/members/deformed), `GridRenderer` (adaptive world-unit grid), `LoadsRenderer` (ArrowHelper), `SupportRenderer`
+- `useThreeInteraction` composable: raycasting hit-test, rubber-band selection (window vs. crossing), node drag, endpoint reconnect
+- `useCanvasMode` composable: camera mode state (`'2d'` / `'3d'`), workplane Z
+- `WorkplaneControls.vue`: preset views (Top/Front/Side/Iso), workplane Z input
+- Node/member labels: HTML overlay via `updateLabels()` frame callback (not SVG text)
+- Snapshot: `renderer.domElement.toDataURL()` (WebGL canvas, not SVG serialize)
 
-**Support & Load Visualization:**
-- Redesigned support icons: proper structural symbols (pinned triangle, fixed bar, roller with wheels)
-- Roller direction now correct: X-axis (horizontal) shows left-pointing triangle with vertical wheels; Y-axis (vertical) shows down-pointing triangle with horizontal wheels
-- Distributed load rendering complete: arrows perpendicular to member, trapezoidal fill, w1/w2 labels
+**Phase 3 — Full 3D FEM Solver:**
+- Frame: 6-DOF/node (ux, uy, uz, θx, θy, θz); Truss: 3-DOF/node (ux, uy, uz)
+- 12×12 local frame stiffness + 6×6 local truss stiffness
+- Gram-Schmidt local axis: `ey ≈ global Y` (gravity direction) for horizontal members → V=Vy, M=Mz backward-compat aliases correct
+- `memberProps.ts`: Iz = strong axis = profile.Ix (XY/gravity bending); Iy = weak axis = profile.Iy (XZ/lateral bending)
+- `approximateJ.ts`: torsion constant J from section geometry (CHS/RHS/open)
+- New result fields: `uz`, `rx`, `ry` (NodeResult); `Vz[]`, `My[]`, `T[]` (MemberResult)
 
-**Data & UI:**
-- Steel profiles now eager-loaded in store init — visible on first visit to Workspace
-- LoadPanel load type now updates when activated with tool already selected (`{ immediate: true }` watch)
-- All canvas elements stay synchronized during node drag and state changes
+**Phase 4 — 3D UI Bridge:**
+- `LoadPanel.vue`: Fz input field (visible in 3D camera mode only)
+- `NodePanel.vue`: Roller-Z (out-of-plane) support option
+- `LoadsRenderer.ts`: Fz arrow (Z-direction ArrowHelper)
+- `DisplacementTable.vue`: uz, rx, ry columns
+- `ReactionTable.vue`: Rz, Mx, My columns
+- `DiagramPanel.vue`: Vz / My / T diagram modes (shown only when `has3dForces`)
+- `ReportResultsSections.vue`: mirrored 3D columns in print report
+- `StructureRenderer.ts`: deformed shape uses actual `uz + node.z` for Z position
 
-**Envelope Analysis & Capacity Graphs (Features 26–27):**
-- "⊛ Envelope" button in Workspace sidebar runs all LRFD combinations and finds worst-case demands per member
-- `solverStore.runEnvelopeAnalysis()` loops all combinations, calls `buildFactoredLoads()` + `runFemAnalysis()`, then `computeEnvelope()`
-- `performDesignCheckEnvelope()` in `designCheck.ts` runs full design check per combo, returns worst UR_combined + governing combo name
-- DesignAssessmentPanel has Active/Envelope toggle; envelope mode shows governing combo badge per row
-- Capacity Graph: Table/Graph tabs in AlternativesRow; Graph uses D3 bar chart with color zones (green/amber/red) per UR thresholds
-- **Vue template pattern:** `!` non-null assertion is invalid in Vue templates — wrap in a `requireX()` script function that uses `!` and call that in the template instead
+**Envelope Analysis & Capacity Graphs:**
+- "⊛ Envelope" runs all LRFD combinations, finds worst-case demands per member
+- `performDesignCheckEnvelope()` returns worst UR_combined + governing combo name
+- DesignAssessmentPanel has Active/Envelope toggle; D3 bar chart capacity graph
 
-**Trapezoidal Distributed Load Bugs (Audit fixes):**
-- `loadVector.ts`: Fixed-end force formula used `wAvg` instead of `w1` as the uniform part → now `w1*L/2 + 3*dw*L/20` = `(7w1+3w2)L/20` (correct). UDL w1=w2 was unaffected.
-- `postProcessor.ts`: V/M station sampling used `w(xi)·x` (constant-w approximation) → now integrates correctly: `w1·x + dw·x²/(2L)` for V, `w1·x²/2 + dw·x³/(6L)` for M.
+**Vue template pattern:** `!` non-null assertion is invalid in Vue templates — wrap in a `requireX()` script function that uses `!` and call that in the template instead
 
-**Testing:** 132 E2E tests + 320 unit tests (452 total) covering all above fixes
+**Testing:** 132 E2E tests + 323 unit tests (455 total)
 
 ---
 
@@ -190,9 +193,9 @@ See `./docs/` for detailed guides:
 - **SELECT (S):** Click/drag to select; rubber-band window (left→right) or crossing (right→left)
   - **Endpoint reconnect:** When 1 member is selected, drag the white circle handles at each endpoint to reconnect to a different node; snap highlight appears within 20px radius
 - **PAN (P):** Left-drag to pan; always use scroll wheel or middle-mouse in any mode
-- **ADD_NODE (N):** Click canvas to place nodes; snaps to 80px grid if enabled
+- **ADD_NODE (N):** Click canvas to place nodes; snaps to world-unit grid if enabled (G toggles snap)
 - **ADD_MEMBER (M):** Click two nodes to create member; see ghost line preview
-- **ADD_POINT_LOAD (L):** Click node to add load; form pre-fills on click
+- **ADD_POINT_LOAD (L):** Click node to add load; form pre-fills on click; Fz field visible in 3D camera mode
 - **ADD_DIST_LOAD (D):** Click member to add distributed load; invisible rect for easy selection
 - **ADD_MOMENT (R):** Click node to add moment; blocked on truss structures
 
@@ -212,9 +215,13 @@ See `./docs/` for detailed guides:
 
 ### FEM Solver
 
+- **3D frame:** 6-DOF/node (ux, uy, uz, θx, θy, θz); 12×12 local stiffness, transformed via direction cosines
+- **3D truss:** 3-DOF/node (ux, uy, uz); 6×6 local stiffness
+- **Local axis:** Gram-Schmidt convention — `ey ≈ global Y` (gravity) for horizontal members; backward-compat: V=Vy, M=Mz
+- **Section props:** `Iz` = strong axis (gravity/XY bending) = `profile.Ix`; `Iy` = weak axis = `profile.Iy`; `J` from `approximateJ.ts`
 - **Iterative for tension-only:** Removes compressive cables, re-solves until converged (max 50 iterations)
 - **Slack handling:** Removed members get zero forces in result
-- **Supports:** frame (6-DOF per node) and truss (3-DOF per node)
+- **Supports:** pin (3 DOF fixed), fixed (6 DOF fixed), roller-X/Y/Z (5 DOF fixed)
 - **Matrix method:** Assemble K (stiffness), F (force), apply BC, solve Kd = F, compute reactions and member forces
 
 ### Steel Profile Data Caveat

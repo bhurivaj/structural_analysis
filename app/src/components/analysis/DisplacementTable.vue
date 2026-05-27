@@ -15,23 +15,31 @@ function nodeName(nodeId: string) {
 <template>
   <div>
     <div class="text-sm font-medium text-slate-700 mb-2">Nodal Displacements</div>
-    <table class="w-full text-xs border-collapse">
-      <thead class="bg-slate-100">
-        <tr>
-          <th class="px-2 py-1 text-left font-medium text-slate-600">Node</th>
-          <th class="px-2 py-1 text-right font-medium text-slate-600">ux (mm)</th>
-          <th class="px-2 py-1 text-right font-medium text-slate-600">uy (mm)</th>
-          <th class="px-2 py-1 text-right font-medium text-slate-600">θz (rad)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="r in solver.result?.nodeResults" :key="r.nodeId" class="border-b border-slate-100">
-          <td class="px-2 py-1">{{ nodeName(r.nodeId) }}</td>
-          <td class="px-2 py-1 text-right font-mono">{{ r.ux.toFixed(4) }}</td>
-          <td class="px-2 py-1 text-right font-mono">{{ r.uy.toFixed(4) }}</td>
-          <td class="px-2 py-1 text-right font-mono">{{ r.rz.toExponential(3) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs border-collapse">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="px-2 py-1 text-left font-medium text-slate-600">Node</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">ux (mm)</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">uy (mm)</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">uz (mm)</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">rx (rad)</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">ry (rad)</th>
+            <th class="px-2 py-1 text-right font-medium text-slate-600">θz (rad)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in solver.result?.nodeResults" :key="r.nodeId" class="border-b border-slate-100">
+            <td class="px-2 py-1">{{ nodeName(r.nodeId) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.ux.toFixed(4) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.uy.toFixed(4) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.uz.toFixed(4) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.rx.toExponential(3) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.ry.toExponential(3) }}</td>
+            <td class="px-2 py-1 text-right font-mono">{{ r.rz.toExponential(3) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

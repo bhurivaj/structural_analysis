@@ -11,6 +11,7 @@ import {
   type EnvelopeDesignCheckResult,
 } from '@/utils/designCheck'
 import { findOptimalProfile } from '@/utils/autoSize'
+import { memberPropsFromProfile } from '@/utils/memberProps'
 import { envelopeToMemberResult } from '@/solver/envelopeAnalysis'
 import { useSessionCache } from '@/composables/useSessionCache'
 import AlternativesRow from './AlternativesRow.vue'
@@ -97,12 +98,7 @@ function toggleExpanded(memberId: string) {
 function applyProfile(memberId: string, profileId: string) {
   const profile = steelProfiles.profileById(profileId)
   if (!profile) return
-  structure.updateMember(memberId, {
-    steelProfileId: profile.id,
-    E: profile.E,
-    A: profile.A,
-    I: profile.Ix,
-  })
+  structure.updateMember(memberId, memberPropsFromProfile(profile))
   expandedMemberId.value = null
   cache.saveSession()
 }
@@ -130,12 +126,7 @@ async function autoSizeAll() {
     )
 
     if (optimal) {
-      structure.updateMember(result.memberId, {
-        steelProfileId: optimal.id,
-        E: optimal.E,
-        A: optimal.A,
-        I: optimal.Ix,
-      })
+      structure.updateMember(result.memberId, memberPropsFromProfile(optimal))
       changeCount++
     }
   }

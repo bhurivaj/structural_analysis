@@ -77,9 +77,9 @@ Nodes have auto-assigned labels (N1, N2, …) that engineers may want to customi
 - Changes persist to sessionStorage via auto-save watcher
 
 **In `StructureCanvas.vue`:**
-- Labels render at node position when selected (via #node-labels SVG text)
-- Positioned offset below node circle to avoid overlap
-- Font size 12px, color #334155 (slate-700)
+- Labels render as HTML `<span>` elements positioned over the WebGL canvas (not SVG text)
+- `updateLabels()` called every frame via `SceneManager.addFrameCallback` — projects world coords to screen via `projectToScreen()`
+- Offset 8px right, 14px above node; font-mono 10px; node labels = slate-500, member labels = slate-400
 
 ### Verification
 
@@ -93,12 +93,12 @@ Nodes have auto-assigned labels (N1, N2, …) that engineers may want to customi
 
 ### Grid Snap Toggle
 
-Implemented in `StructureCanvas.vue` as `gridSnap` ref (default true):
+Implemented in `useCanvasKeys.ts` as `snapEnabled` ref (default true):
 
-- Toggle button in toolbar labeled "⊞ Snap"
-- When active, new nodes snap to 80px grid (matches grid visual)
-- Snap logic: `Math.round(coord / 80) * 80`
-- State persisted to sessionStorage
+- G key toggles snap; toolbar button shows current state
+- When active, ADD_NODE clicks snap to nearest world unit: `Math.round(worldX)`, `Math.round(worldY)`
+- Shift+drag node also snaps to nearest integer world unit
+- Grid visual (GridRenderer) uses the same world-unit spacing
 
 ### Truss Validation
 
@@ -120,23 +120,20 @@ Trusses are pin-jointed structures and cannot resist moment loads.
 
 ### Architecture
 
-Analysis results include displacements (ux, uy per node). Deformed shape overlays member positions after applying amplified displacements.
+Analysis results include displacements (ux, uy, uz per node). Deformed shape overlays member positions after applying amplified displacements, including out-of-plane (Z) deflection.
 
 **In `solverStore.ts`:**
 - `showDeformed` ref (boolean) — toggles deformed overlay
 - `deformedScale` ref (0–500%, default 100) — in `settingsStore`
-- `toggleDeformed()` — button click handler
 
 **In `StructureCanvas.vue`:**
-- `#deformed-layer` SVG group (added in onMounted after member-layer)
-- `drawDeformed(g)` function:
-  - Loops members; finds start/end nodes in result
-  - Calculates deformed positions: `x' = x + ux×scale`, `y' = -(y + uy×scale)`
-  - Renders as dashed blue lines with opacity 0.8
-  - Line width scales with viewport zoom: `strokeWidth = 2 / k`
-  - Stroke-dasharray: `5/k, 3/k` (consistent dashing at all zoom levels)
-- Called in `drawAll()` after `drawMembers()`
-- Watch includes `solver.showDeformed` → redraw on toggle
+- `buildDeformedMap()` — builds `Map<nodeId, {ux, uy, uz}>` from `solver.result.nodeResults`
+- Passed to `structRend.update(...)` which calls `updateDeformed()`
+
+**In `StructureRenderer.ts` (`updateDeformed()`):**
+- Creates `THREE.LineSegments` with `LineDashedMaterial` (blue dashed, `0x3b82f6`)
+- Deformed position: `(node.x + ux*scale, node.y + uy*scale, node.z + uz*scale)` — full 3D
+- `computeLineDistances()` required for dashed material to render correctly
 
 **In `WorkspaceView.vue`:**
 - DEF button in diagram overlay (only shows when analysis successful)
@@ -147,7 +144,7 @@ Analysis results include displacements (ux, uy per node). Deformed shape overlay
 1. Run analysis → DEF button appears ✅
 2. Click DEF → deformed members render over structure ✅
 3. Adjust deformedScale slider → deformation amplification changes in real-time ✅
-4. Pan/zoom → deformed lines follow, dashing stays consistent ✅
+4. With Fz load in 3D mode → members deflect in Z direction ✅
 5. Clear result → DEF button disappears, showDeformed resets to false ✅
 
 ## Multi-select & Batch Delete with Load Cascade
@@ -208,37 +205,9 @@ Click load → setEditingLoad(id) → editingLoadId changes → WorkspaceView wa
 3. SELECT mode → click load arrow → Load tab + edit form pre-filled ✅
 4. Non-SELECT modes → click load → no action (tool modes unchanged) ✅
 
-## Bug Fix: Distributed Load Click Interaction
+## Distributed Load Click Interaction
 
-### Issue
-
-Distributed load arrows were not clickable in SELECT mode despite having click handlers. The click area was too small (5 thin 1.5px stroke arrows).
-
-### Solution
-
-Added invisible SVG `<rect>` element wrapping the distributed load arrows:
-
-```ts
-loadGroup.append('rect')
-  .attr('x', Math.min(n1.x, n2.x) - 15 / scale)
-  .attr('y', Math.min(-n1.y, -n2.y) - arrowLen - 15 / scale)
-  .attr('width', distLen + 30 / scale)
-  .attr('height', arrowLen + 30 / scale)
-  .attr('fill', 'none')
-  .attr('pointer-events', 'all')
-```
-
-The rect:
-- Has `fill: none` (invisible, no visual impact)
-- Has `pointer-events: all` (captures clicks even when invisible)
-- Spans member length + 30px padding on all sides for comfortable clicking
-- Positioned behind arrow lines (SVG render order: rect first, then lines)
-
-### Verification
-
-1. SELECT mode → distributed load click → Load tab opens ✅
-2. Form pre-fills with load values ✅
-3. "Update Load" button available for editing ✅
+Distributed load arrows are Three.js `ArrowHelper` objects rendered by `LoadsRenderer.ts`. Click detection uses screen-space proximity — `useThreeInteraction` projects load arrow positions to screen and checks pointer distance. Selecting a distributed load calls `setEditingLoad(id)`, which switches the right panel to the Load tab and pre-fills the form.
 
 ## Friendly Member & Load Labels
 
@@ -287,76 +256,37 @@ Inserted before Steel Profile dropdown. Calls existing `update()` → `structure
 
 ### Architecture
 
-Member labels now display on the canvas at the midpoint of each member line, showing the member label and assigned steel profile designation (e.g., "M1 / H 150×75").
-
-**File Modified:** `src/components/canvas/StructureCanvas.vue` only
+Node and member labels are HTML `<span>` elements in `StructureCanvas.vue`, positioned absolutely over the WebGL canvas. Updated every animation frame via `updateLabels()` registered as a `SceneManager` frame callback.
 
 ### Implementation
 
-**1. Helper Function**
-
 ```ts
-function shortDesignation(des: string): string {
-  const parts = des.split('×')
-  return parts.length > 2 ? parts.slice(0, 2).join('×') : des
+function updateLabels() {
+  if (!sceneMan || !containerRef.value) return
+  const cr = containerRef.value.getBoundingClientRect()
+  const items: LabelItem[] = []
+  for (const n of structure.nodes) {
+    const { sx, sy } = projectToScreen(n.x, n.y, n.z ?? 0, sceneMan.camera, cr)
+    items.push({ key: `n-${n.id}`, text: n.label ?? '', x: sx - cr.left + 8, y: sy - cr.top - 14 })
+  }
+  for (const m of structure.members) {
+    // midpoint of member → projectToScreen
+    items.push({ key: `m-${m.id}`, text: m.label ?? '', x: ..., y: ... })
+  }
+  labels.value = items
 }
 ```
 
-Shortens steel profile designation from "H 150×75×7×5" to "H 150×75" (first 2 parts only).
-
-**2. Member Label Rendering (in drawMembers())**
-
-- D3 `.selectAll('text.member-label')` with data binding to members
-- Position: midpoint of member (x, y calculated from start/end nodes)
-- Offset: `-8/viewport.value.k` upward (perpendicular to member line)
-- Font size: `10/viewport.value.k` (scales inversely with zoom)
-- Color: `#2563eb` (blue) when selected, `#64748b` (slate-500) when not
-- Label format: `${label}` if no profile, or `${label} / ${shortDesignation(profile)}` if profile assigned
+- Node labels: slate-500, offset +8px right, -14px up from node center
+- Member labels: slate-400, offset at midpoint
+- No rotation (HTML spans don't rotate in sync with camera)
+- Labels update every frame — always in sync with pan/zoom/orbit
 
 ### Verification
 
-1. Add member → canvas shows "M1" at midpoint ✅
-2. Assign profile → canvas shows "M1 / H 150×75" ✅
-3. Select member → label color changes to blue ✅
-4. Zoom in/out → label size stays constant on screen ✅
-
-## Member Label Rotation (parallel to member line)
-
-### Overview
-
-Member labels are now rotated to align with their member's angle instead of always rendering horizontally. Labels remain readable (never upside-down) and maintain proper perpendicular offset using SVG rotation transforms.
-
-### Implementation (SVG transform-based)
-
-```ts
-.attr('transform', d => {
-  const n1 = structure.nodeById(d.startNodeId)
-  const n2 = structure.nodeById(d.endNodeId)
-  const x1 = n1?.x ?? 0, y1 = -(n1?.y ?? 0)
-  const x2 = n2?.x ?? 0, y2 = -(n2?.y ?? 0)
-  const mx = (x1 + x2) / 2
-  const my = (y1 + y2) / 2
-  let angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
-  // Flip if text would be upside down
-  if (angle > 90 || angle < -90) angle += 180
-  return `translate(${mx},${my}) rotate(${angle})`
-})
-.attr('x', 0)
-.attr('y', 0)
-.attr('dy', -8 / viewport.value.k)  // perpendicular offset in rotated frame
-```
-
-**Why this works:**
-1. `translate(mx, my)` — moves SVG origin to member midpoint
-2. `rotate(angle)` — aligns coordinate system with member direction
-3. `dy = -8/k` — in the rotated frame, negative dy shifts "above" the member
-
-### Visual Result
-
-- **Horizontal members**: labels stay horizontal (0° rotation)
-- **Vertical members**: labels rotate 90°, still readable
-- **Diagonal members**: labels follow member slope
-- **All members**: consistent "above" offset perpendicular to line
+1. Add member → canvas shows "M1" near midpoint ✅
+2. Assign profile → member label updates ✅
+3. Pan/zoom/orbit → labels follow geometry ✅
 
 ## Tension-Only Members (Cable / Rod / Sling)
 
@@ -418,21 +348,16 @@ if (isTensionOnly) {
 
 Checkbox toggles `tensionOnly` flag + warning message in Thai.
 
-**5. Canvas Rendering (`src/components/canvas/StructureCanvas.vue`)**
+**5. Canvas Rendering (`src/components/canvas/three/StructureRenderer.ts`)**
 
-Tension-only members render as dashed orange lines:
+Tension-only members render in orange via `vertexColors` in `updateMembers()`:
 
 ```ts
-.attr('stroke', d => {
-  if (structure.selectedMemberIds.includes(d.id)) return '#2563eb'
-  if (d.tensionOnly) return '#f97316'  // orange for cable
-  return '#475569'
-})
-.attr('stroke-dasharray', d => {
-  if (d.tensionOnly) return `${6 / viewport.value.k},${4 / viewport.value.k}`
-  return null as any
-})
+const c = sel.has(m.id) ? C_MEMBER_SEL : m.tensionOnly ? C_TENSION : C_MEMBER
+// C_TENSION = 0xf97316 (orange)
 ```
+
+No dashing — the orange color alone distinguishes tension-only from normal members.
 
 ### Slack Member Handling
 
@@ -470,74 +395,38 @@ This ensures:
 
 Allows engineers to change which nodes a member connects to by dragging endpoint handles directly on canvas — CAD-style reconnect without deleting and redrawing.
 
-**File Modified:** `src/components/canvas/StructureCanvas.vue` only
+**Files:** `src/composables/useThreeInteraction.ts`, `src/components/canvas/three/StructureRenderer.ts`
 
 ### Implementation
 
-**1. Drag State (`endpointDrag` ref)**
+**1. Trigger condition**
 
-```ts
-const endpointDrag = ref<{
-  memberId: string
-  which: 'start' | 'end'
-  fixedX: number     // SVG coords of the non-dragged endpoint
-  fixedY: number
-  mouseX: number     // current drag cursor in world/SVG space
-  mouseY: number
-  fixedNodeId: string
-  snapNodeId: string | null  // nearest node within snap radius
-} | null>(null)
-```
+When exactly 1 member is selected, `useThreeInteraction` calls `structRend.setEpHandles([start, end])` to render cyan endpoint handles in the Three.js scene.
 
-**2. Computed single-member selection**
+**2. Three.js objects (StructureRenderer)**
 
-```ts
-const singleSelectedMember = computed(() => {
-  if (structure.selectedMemberIds.length !== 1) return null
-  return structure.members.find(m => m.id === structure.selectedMemberIds[0]) ?? null
-})
-```
+- **`epHandles`** — `THREE.Points` with cyan material (`0x22d3ee`), size 14px non-attenuated; rendered at each endpoint (z + 0.1 for depth)
+- **`epGhost`** — `THREE.Line` with `LineDashedMaterial` from fixed endpoint to drag cursor
 
-Handles only render when exactly 1 member is selected.
+**3. Pointer event handling (useThreeInteraction)**
 
-**3. SVG Layer**
+- `pointerdown` on canvas → if hit-test hits an ep-handle point → enter endpoint drag mode
+- `pointermove` during drag → update ghost line via `structRend.setEpGhost(fixed, cursor)`; show snap ring via `structRend.setSnapRing(nearestNode)` if within 20px screen radius
+- `pointerup` → if snap target found → `structure.updateMember(id, { startNodeId/endNodeId: snapNodeId })`; clear handles
 
-New `#endpoint-layer` appended after `#support-layer` in onMounted — renders on top of all other layers.
+**4. Snap radius**
 
-**4. `drawEndpointHandles(g)` — called in `drawAll()`**
-
-Three elements rendered:
-- **`circle.ep-handle`** — white circle with blue stroke at each endpoint; `cursor: grab`; has D3 drag behavior attached
-- **`line.ep-ghost`** — dashed blue line from fixed end to cursor during drag
-- **`circle.ep-snap`** — semi-transparent blue highlight on nearest snappable node during drag
-
-**5. D3 drag behavior (`createEndpointDragBehavior()`)**
-
-- `start`: capture which end is being dragged, record fixed endpoint coords
-- `drag`: convert `event.sourceEvent.clientX/Y` → world coords; find nearest node within 20px screen radius; update `endpointDrag`, call `drawAll()`
-- `end`: if `snapNodeId` is set → `structure.updateMember(id, { startNodeId/endNodeId: snapNodeId })`; clear state
-
-**6. Rubber-band exclusion**
-
-`mousedown.select` now excludes `.ep-handle` from triggering rubber-band selection:
-```ts
-if (target.closest('.node, .member-hit, .ep-handle')) return
-```
-
-### Snap Radius
-
-20 screen pixels, converted to world units: `snapPx = 20 / viewport.k`. Scales correctly at any zoom level.
+20 screen pixels — converted to world distance using camera projection. Snap ring (large blue dot) highlights the target node.
 
 ### Verification
 
-1. Add 3+ nodes, draw member between N1–N2, select in SELECT mode → handles appear at both endpoints ✅
+1. Add 3+ nodes, draw member N1–N2, select in SELECT mode → cyan handles appear at both endpoints ✅
 2. Drag start handle toward N3, release → member reconnects to N3 ✅
 3. Ghost line follows cursor during drag ✅
-4. Snap highlight appears when cursor is within 20px of a valid node ✅
+4. Snap ring appears when cursor is within 20px of a valid node ✅
 5. No snap (release in empty space) → member stays unchanged ✅
 6. Undo → reverts to original connection ✅
 7. Deselect member → handles disappear ✅
-8. Switch to non-SELECT tool → handles do not render ✅
 
 ## Enhanced Print Report
 
@@ -555,29 +444,32 @@ watch(() => solver.result, (res) => {
 })
 ```
 
-`captureSnapshot()` serializes the SVG with `XMLSerializer`, sets `viewBox` (responsive) instead of fixed pixel dimensions, and returns a base64 data URL:
+`captureSnapshot()` calls `sceneMan.snapshot()` which returns a base64 PNG from the WebGL canvas:
 
 ```ts
-clone.setAttribute('viewBox', `0 0 ${width} ${height}`)
-clone.setAttribute('width', '100%')
-clone.removeAttribute('height')
+snapshot(): string {
+  return this.renderer.domElement.toDataURL('image/png')
+}
 ```
+
+`preserveDrawingBuffer: true` is required on `WebGLRenderer` — otherwise the framebuffer is cleared after each frame and `toDataURL` returns blank.
 
 ### Report Sections (12 total)
 
 | # | Section | Notes |
 |---|---------|-------|
-| 1 | Structure Diagram | SVG snapshot; placeholder if no analysis run |
+| 1 | Structure Diagram | WebGL canvas PNG snapshot; placeholder if no analysis run |
 | 2 | Structure Summary | Includes design pass/fail count |
 | 3 | Design Criteria | φ values (AISC 360), K=1, thresholds from `settings.urMarginal`/`urFail` |
-| 4 | Nodes | X/Y in selected length unit |
+| 4 | Nodes | X/Y/Z in selected length unit |
 | 5 | Members | Length, profile name, Type (Frame/Truss/Cable) |
 | 6 | Steel Profile Parameters | d, bf, tf, tw, A, Ix, Iy, Sx, ry, Fy, mass — hidden if no profiles |
-| 7 | Applied Loads | Uses member label for distributed loads (bug fix) |
-| 8 | Support Reactions | Unit-converted |
-| 9 | Nodal Displacements | ux/uy in selected length unit (÷1000 from internal mm) |
-| 10 | Member End Forces | Uses member label (bug fix: was using `nodeName`) |
+| 7 | Applied Loads | Uses member label for distributed loads |
+| 8 | Support Reactions | Rx, Ry, Rz, Mx, My, Mz — unit-converted |
+| 9 | Nodal Displacements | ux, uy, uz (length unit), rx, ry, θz (rad) |
+| 10 | Member End Forces | N₁/V₁/M₁/N₂/V₂/M₂ per member |
 | 11 | Design Assessment | UR table, color-coded, status icons, suggestion notes |
+| 12 | (reserved) | — |
 
 ### Print CSS
 

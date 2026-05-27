@@ -1,45 +1,53 @@
 import { test, expect } from '@playwright/test'
 
-async function waitForGrid(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
-  await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+async function waitForCanvas(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
+  await page.locator('#structure-canvas canvas').waitFor({ state: 'attached', timeout: 8000 })
 }
 
 test.describe('Load Tab Auto-switching', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/')
-    await page.waitForLoadState('networkidle')
-    await waitForGrid(page)
+    await page.goto('/workspace')
+    await waitForCanvas(page)
+    const resumeBtn = page.getByRole('button', { name: 'Start New' })
+    if (await resumeBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await resumeBtn.click()
+    }
   })
 
-  test('clicking a point load switches to Loads tab', async ({ page }) => {
+  test('pressing L key switches panel to Load tab', async ({ page }) => {
+    // Default tab is Node; pressing 'l' enters ADD_POINT_LOAD mode → Load tab auto-switches
+    await page.keyboard.press('l')
+    await page.waitForTimeout(200)
+
+    // "Add Load" button is inside LoadPanel which is only shown on Load tab
+    await expect(page.locator('button:has-text("Add Load")')).toBeVisible({ timeout: 2000 })
+  })
+
+  test('clicking a point load in the list switches to edit mode (Update Load)', async ({ page }) => {
     // Add a node
     await page.keyboard.press('n')
     await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
     await page.waitForTimeout(100)
 
-    // Add a point load via the tool
+    // Add a point load
     await page.keyboard.press('l')
-    const node = page.locator('circle.node').first()
-    await node.click()
+    await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
+    await page.waitForTimeout(300)
+
+    const addBtn = page.locator('button:has-text("Add Load")').first()
+    if (await addBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await addBtn.click()
+      await page.waitForTimeout(300)
+    }
+
+    // PL1 should appear in the load list
+    await expect(page.locator('text=PL1')).toBeVisible({ timeout: 3000 })
+
+    // Click PL1 in the load list to enter edit mode
+    await page.locator('text=PL1').click()
     await page.waitForTimeout(200)
 
-    // The LoadPanel form should show now. Click "Add Load" with default values
-    await page.click('button:has-text("Add Load")')
-    await page.waitForTimeout(200)
-
-    // Verify load appears on canvas (red arrow line)
-    const loadArrow = page.locator('line[stroke="#dc2626"]')
-    await loadArrow.waitFor({ state: 'attached', timeout: 5000 })
-
-    // Switch to SELECT mode
-    await page.keyboard.press('s')
-    await page.waitForTimeout(100)
-
-    // Click on the load arrow to select it (use force to bypass visibility check)
-    await loadArrow.click({ force: true })
-    await page.waitForTimeout(200)
-
-    // The Load tab should now be active (show "Update Load" button instead of "Add Load")
-    await expect(page.locator('button:has-text("Update Load")')).toBeVisible()
+    // Panel should now show "Update Load" button (edit mode)
+    await expect(page.locator('button:has-text("Update Load")')).toBeVisible({ timeout: 2000 })
   })
 })

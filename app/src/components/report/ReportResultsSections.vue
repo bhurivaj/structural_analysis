@@ -36,47 +36,63 @@ const passCount = computed(() => designResults.value.filter(r => r.status === 'P
     <!-- Reactions -->
     <section class="border-t border-slate-200 pt-4">
       <h2 class="font-semibold text-slate-700 mb-2">9. Support Reactions</h2>
-      <table class="w-full text-xs border-collapse">
-        <thead class="bg-slate-100">
-          <tr>
-            <th class="px-2 py-1 text-left">Node</th>
-            <th class="px-2 py-1 text-right">Rx ({{ settings.forceUnit }})</th>
-            <th class="px-2 py-1 text-right">Ry ({{ settings.forceUnit }})</th>
-            <th class="px-2 py-1 text-right">Mz ({{ settings.momentLabel }})</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in solver.result.reactions" :key="r.nodeId" class="border-b border-slate-100">
-            <td class="px-2 py-1 font-medium">{{ nodeName(r.nodeId) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ settings.toForce(r.rx).toFixed(4) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ settings.toForce(r.ry).toFixed(4) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ settings.toMoment(r.mz).toFixed(4) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs border-collapse">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="px-2 py-1 text-left">Node</th>
+              <th class="px-2 py-1 text-right">Rx ({{ settings.forceUnit }})</th>
+              <th class="px-2 py-1 text-right">Ry ({{ settings.forceUnit }})</th>
+              <th class="px-2 py-1 text-right">Rz ({{ settings.forceUnit }})</th>
+              <th class="px-2 py-1 text-right">Mx ({{ settings.momentLabel }})</th>
+              <th class="px-2 py-1 text-right">My ({{ settings.momentLabel }})</th>
+              <th class="px-2 py-1 text-right">Mz ({{ settings.momentLabel }})</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in solver.result.reactions" :key="r.nodeId" class="border-b border-slate-100">
+              <td class="px-2 py-1 font-medium">{{ nodeName(r.nodeId) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toForce(r.rx).toFixed(4) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toForce(r.ry).toFixed(4) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toForce(r.rz).toFixed(4) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toMoment(r.mx).toFixed(4) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toMoment(r.my).toFixed(4) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toMoment(r.mz).toFixed(4) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Displacements -->
     <section class="border-t border-slate-200 pt-4">
       <h2 class="font-semibold text-slate-700 mb-2">10. Nodal Displacements</h2>
-      <table class="w-full text-xs border-collapse">
-        <thead class="bg-slate-100">
-          <tr>
-            <th class="px-2 py-1 text-left">Node</th>
-            <th class="px-2 py-1 text-right">ux ({{ settings.lengthUnit }})</th>
-            <th class="px-2 py-1 text-right">uy ({{ settings.lengthUnit }})</th>
-            <th class="px-2 py-1 text-right">&theta;z (rad)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in solver.result.nodeResults" :key="r.nodeId" class="border-b border-slate-100">
-            <td class="px-2 py-1 font-medium">{{ nodeName(r.nodeId) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ settings.toLength(r.ux / 1000).toFixed(5) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ settings.toLength(r.uy / 1000).toFixed(5) }}</td>
-            <td class="px-2 py-1 text-right font-mono">{{ r.rz.toExponential(3) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs border-collapse">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="px-2 py-1 text-left">Node</th>
+              <th class="px-2 py-1 text-right">ux ({{ settings.lengthUnit }})</th>
+              <th class="px-2 py-1 text-right">uy ({{ settings.lengthUnit }})</th>
+              <th class="px-2 py-1 text-right">uz ({{ settings.lengthUnit }})</th>
+              <th class="px-2 py-1 text-right">rx (rad)</th>
+              <th class="px-2 py-1 text-right">ry (rad)</th>
+              <th class="px-2 py-1 text-right">&theta;z (rad)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in solver.result.nodeResults" :key="r.nodeId" class="border-b border-slate-100">
+              <td class="px-2 py-1 font-medium">{{ nodeName(r.nodeId) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toLength(r.ux / 1000).toFixed(5) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toLength(r.uy / 1000).toFixed(5) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ settings.toLength(r.uz / 1000).toFixed(5) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ r.rx.toExponential(3) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ r.ry.toExponential(3) }}</td>
+              <td class="px-2 py-1 text-right font-mono">{{ r.rz.toExponential(3) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Member End Forces -->

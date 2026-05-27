@@ -1,10 +1,132 @@
-# Canvas Architecture & UX
+# Canvas Architecture
 
-Detailed documentation of D3.js canvas behavior, interaction patterns, and viewport management.
+The canvas is a Three.js WebGL scene rendered inside `StructureCanvas.vue`. D3 was fully replaced in Phase 1.
+
+## Scene Setup (`SceneManager.ts`)
+
+`SceneManager` owns the renderer, cameras, and animation loop:
+
+- **Renderer:** `THREE.WebGLRenderer` — fills the container div, antialiased, `preserveDrawingBuffer: true` (enables snapshot)
+- **2D camera:** `THREE.OrthographicCamera` — top-down view, zoom via frustum scaling
+- **3D camera:** `THREE.PerspectiveCamera` — perspective view, `OrbitControls` for pan/orbit/zoom
+- **Animation loop:** `requestAnimationFrame`; frame callbacks registered via `addFrameCallback(fn)` (labels, grid update)
+- **Mode switch:** `setMode('2d' | '3d')` — swaps active camera, resets controls
+- **Preset views:** `setPresetView('top' | 'front' | 'side' | 'iso')` — repositions camera
+- **Fit to view:** `fitToView(xMin, xMax, yMin, yMax)` — adjusts zoom/frustum to contain structure
+- **Snapshot:** `snapshot()` — returns `renderer.domElement.toDataURL('image/png')` for print report
+
+## Renderers
+
+Each renderer owns its Three.js objects and disposes them cleanly.
+
+| Renderer | File | Objects |
+|----------|------|---------|
+| `StructureRenderer` | `three/StructureRenderer.ts` | `Points` (nodes), `LineSegments` (members, deformed), `Line` (ghost/ep-ghost), `Points` (snap ring, ep-handles) |
+| `GridRenderer` | `three/GridRenderer.ts` | `LineSegments` (world-unit grid, adaptive spacing) |
+| `LoadsRenderer` | `three/LoadsRenderer.ts` | `ArrowHelper` objects for Fx, Fy, Fz; trapezoidal distributed load lines |
+| `SupportRenderer` | `three/SupportRenderer.ts` | Pin triangle, fixed bar, roller wheels — 2D/3D mode aware |
+
+### StructureRenderer
+
+`update(nodes, members, selectedNodeIds, selectedMemberIds, deformedMap?, scale)` — called on every store change.
+
+- **Nodes:** `THREE.Points` with `vertexColors` — selected nodes render in blue (`0x2563eb`), others in slate
+- **Members:** `THREE.LineSegments` with `vertexColors` — selected = blue, tension-only = orange (`0xf97316`), normal = slate
+- **Deformed shape:** `THREE.LineSegments` with `LineDashedMaterial` (blue dashed) — positions = `(node.x + ux*scale, node.y + uy*scale, node.z + uz*scale)`
+- **Ghost line:** dashed blue `THREE.Line` shown during ADD_MEMBER (follows mouse) or endpoint drag
+- **Snap ring:** large `THREE.Points` dot highlighting the nearest snap target
+- **EP handles:** cyan `THREE.Points` at each endpoint of a selected member (endpoint reconnect)
+
+### GridRenderer
+
+Adaptive world-unit grid: spacing doubles/halves as zoom changes to stay between 20–200px on screen. Updated every frame via `SceneManager.addFrameCallback`.
+
+## Coordinate System
+
+- **World space:** X = right, Y = up, Z = out-of-plane (toward viewer)
+- **Stored coordinates:** `node.x`, `node.y` in metres; `node.z` defaults to `0` (workplane)
+- **Three.js positions:** directly use `(x, y, z)` — no Y negation needed (unlike old D3/SVG where Y was negated)
+
+## Interaction (`useThreeInteraction.ts`)
+
+Composable that attaches pointer event listeners to the WebGL canvas DOM element.
+
+### Hit Testing (`threeHitTest.ts`)
+
+- `hitTestNode(x, y, camera, nodes, rect)` — Raycaster against a `THREE.Points` object; returns nearest node within screen-pixel threshold
+- `hitTestMember(x, y, camera, members, nodes, rect)` — projects member segments to screen, finds nearest within threshold
+- `projectToScreen(wx, wy, wz, camera, rect)` — world → screen pixel (used for HTML label overlay)
+
+### Mouse Interactions
+
+| Action | Behavior |
+|--------|----------|
+| Click node (SELECT) | `structure.selectNode()` |
+| Click member (SELECT) | `structure.selectMember()` |
+| Click load arrow (SELECT) | `setEditingLoad(id)` |
+| Click canvas background (SELECT) | `structure.clearSelection()` |
+| Click canvas (ADD_NODE) | `structure.addNode()` at world position (snapped if grid-snap on) |
+| Click node (ADD_MEMBER) | Set start node; second click → `structure.addMember()` |
+| Click member (ADD_DIST_LOAD) | `setEditingLoad(null)` + open LoadPanel |
+| Left drag (SELECT) | Rubber-band selection (see below) |
+| Left drag node (SELECT) | Node drag → `structure.updateNode()` |
+| Drag ep-handle (SELECT) | Endpoint reconnect → `structure.updateMember()` |
+| Scroll wheel | Zoom (all modes) |
+| Middle-mouse drag | Pan (all modes) |
+| Space + left drag | Temporary pan |
+
+### Rubber-Band Selection
+
+- **Left→Right (window):** solid blue box — selects fully enclosed elements only
+- **Right→Left (crossing):** dashed green box — selects any element touching the box
+- Detection: `cx >= startSx ? 'window' : 'crossing'`
+
+### Grid Snap
+
+`useCanvasKeys.ts` tracks snap state (toggled by G key). When active, `ADD_NODE` clicks snap to nearest integer world unit: `Math.round(worldX)`, `Math.round(worldY)`. Shift+drag node also snaps.
+
+### Endpoint Reconnect
+
+When exactly 1 member is selected, cyan handle dots appear at each endpoint. Dragging a handle:
+1. Shows dashed ghost line from fixed end to cursor
+2. Highlights nearest node within 20 screen-pixel snap radius
+3. On release with snap target: `structure.updateMember({ startNodeId/endNodeId: snapNodeId })`
+
+## Camera Mode (`useCanvasMode.ts`)
+
+| Mode | Camera | Controls | Grid |
+|------|--------|----------|------|
+| `'2d'` | OrthographicCamera | Scroll zoom, middle-mouse pan, Space+drag | XY plane grid |
+| `'3d'` | PerspectiveCamera | OrbitControls (orbit + pan + zoom) | XY plane at `workplaneZ` |
+
+Toggle button (top-right of canvas) calls `sceneMan.setMode(next)`. `WorkplaneControls.vue` (visible in 3D mode) provides preset view buttons and workplane Z input.
+
+## Label Overlay
+
+Node and member labels are HTML `<span>` elements positioned absolutely over the canvas — not SVG text. Updated every frame via `updateLabels()` inside `SceneManager.addFrameCallback`:
+
+1. For each node: `projectToScreen(n.x, n.y, n.z)` → CSS `left/top`
+2. For each member: project midpoint → CSS `left/top`
+
+Font: `font-mono text-[10px]` — nodes slate-500, members slate-400.
+
+## Canvas Snapshot
+
+`captureSnapshot()` in `StructureCanvas.vue` calls `sceneMan.snapshot()`:
+
+```ts
+snapshot(): string {
+  return this.renderer.domElement.toDataURL('image/png')
+}
+```
+
+`preserveDrawingBuffer: true` on the renderer is required — otherwise the buffer is cleared after each frame and `toDataURL` returns blank.
+
+Called by `WorkspaceView` after a successful analysis run, stored in `solverStore.snapshotDataUrl` for the print report.
 
 ## Keyboard Shortcuts
 
-All shortcuts fire only when focus is NOT inside an `<input>` or `<textarea>`.
+All shortcuts fire only when focus is NOT inside an `<input>` or `<textarea>` (`useCanvasKeys.ts`).
 
 | Key                        | Action                      |
 | -------------------------- | --------------------------- |
@@ -15,181 +137,9 @@ All shortcuts fire only when focus is NOT inside an `<input>` or `<textarea>`.
 | L                          | ADD_POINT_LOAD tool         |
 | D                          | ADD_DIST_LOAD tool          |
 | R                          | ADD_MOMENT tool             |
+| G                          | Toggle grid snap            |
 | Delete / Backspace         | Delete selected             |
 | Escape                     | Cancel pending member start |
 | Space (hold)               | Temporary pan mode          |
 | Ctrl/Cmd+Z                 | Undo                        |
 | Ctrl/Cmd+Shift+Z or Ctrl+Y | Redo                        |
-
-## Canvas UX Features
-
-### Rich Tooltips
-
-Tool buttons in the left toolbar show instant tooltips on hover with the tool name and keyboard shortcut badge:
-
-- Implemented in `CanvasToolbar.vue` using Tailwind's `group` pattern
-- Tooltips appear to the right of buttons with no delay
-- Each tool: SELECT (S), PAN (P), ADD_NODE (N), ADD_MEMBER (M), POINT_LOAD (L), DIST_LOAD (D), MOMENT (R)
-
-### Pan and Zoom
-
-D3 zoom behavior supports multiple modes:
-
-- **Scroll wheel**: Zoom in/out in any tool mode
-- **Middle-mouse drag**: Pan in any tool mode
-- **Space + left-drag**: Temporary pan while Space is held (any mode)
-- **PAN tool drag**: Left-drag pans when PAN tool is active
-- **Fit button**: Centers structure in viewport (implemented in WorkspaceView)
-- **Zoom indicator**: Displays current zoom % in bottom-right corner
-- Space bar changes cursor to 'grabbing' for visual feedback
-
-### D3 Zoom State Sync
-
-- Initial viewport synced with D3 zoom transform on mount using `svg.call(zoomBehavior.transform, ...)`
-- Prevents mismatch between Pinia viewport state (k=80) and D3 initial state (k=1)
-- Grid rendering now accurate on first pan/zoom
-
-## Canvas Architecture
-
-### D3 Zoom Behavior
-
-Zoom filter controls which events trigger panning/dragging:
-
-- **Scroll wheel**: Always zoom (any mode)
-- **Middle-mouse (button 1)**: Always pan (any mode)
-- **Left-drag (button 0)**: Only in PAN mode OR when Space held
-- **Space bar**: Temporary pan with "grabbing" cursor
-- Cursor reflects state: grab (PAN), crosshair (ADD_NODE), default (SELECT)
-
-### Grid Rendering
-
-- Grid drawn via D3 lines with dynamic spacing (`gridPx = 80 * k`)
-- Line count changes on zoom
-- Grid transform synced via viewport state
-- Skips rendering if `gridPx < 10` to prevent clutter
-
-## Enhanced Click/Drag UX (CAD-style interactions)
-
-### Overview
-
-Improved canvas interaction UX to match CAD software (AutoCAD, Revit) conventions: wider hit areas, directional selection (window vs. crossing), ghost line previews, and better cursor feedback.
-
-**File Modified:** `src/components/canvas/StructureCanvas.vue` only (single file)
-
-### 1. Cursor Feedback for All Tool Modes
-
-Updated `canvasCursor` computed property to show meaningful cursors:
-
-- `PAN`: grab
-- `ADD_NODE`: crosshair
-- `ADD_MEMBER`: crosshair
-- `ADD_POINT_LOAD`, `ADD_DIST_LOAD`, `ADD_MOMENT`: all show **crosshair** (was `default`)
-- `SELECT`: default (except on hover: `pointer` for interactive elements)
-
-Member lines only show `pointer` cursor when in SELECT mode, avoiding misleading cursor in other modes.
-
-### 2. Wider Member Hit Area (14px invisible zone)
-
-**Problem:** Members are 2px stroke — nearly impossible to click, especially when zoomed out.
-
-**Solution:**
-
-- Added `#member-hit-layer` SVG group on top of visible members
-- Created invisible thick lines (14px) with `stroke: transparent`, `pointer-events: all`
-- Same click handlers as visible lines (SELECT, ADD_DIST_LOAD)
-- Visible member lines have `pointer-events: none` so hits pass through to invisible zone
-
-Result: Members now easily clickable at any zoom level, with no visual clutter.
-
-### 3. Deselect on Background Click
-
-**Problem:** Clicking empty canvas in SELECT mode did not clear current selection.
-
-**Solution:**
-
-- Detect plain background click: `wasPlainClick = _selStart !== null && !_selDragging`
-- Call `structure.clearSelection()` and `setEditingLoad(null)` on plain click
-- Maintains rubber-band selection behavior (drag creates box, releases selects)
-
-Result: Natural SELECT mode behavior matching CAD software.
-
-### 4. ADD_MEMBER Ghost Line Preview
-
-**Problem:** After clicking first node in ADD_MEMBER mode, no visual feedback about where member will connect.
-
-**Solution:**
-
-- Track `mouseCanvasPos` ref — mouse position in world coordinates
-- Call `drawGhostLine()` on every `mousemove.ghost` event
-- Ghost line: dashed blue (opacity 0.5), from start node to cursor, follows mouse in real-time
-- Clears when mode changes or member is completed
-
-**Files:**
-
-- `#ghost-layer` SVG group
-- `drawGhostLine()` function
-- `mousemove.ghost` handler
-- Ghost line included in `drawAll()` so it clears on state changes
-
-Result: Crystal-clear visual feedback during member drawing.
-
-### 5. Node Drag Coordinate Fix
-
-**Problem:** Node drag used raw `event.sourceEvent.clientX`, which is wrong when SVG has left offset (e.g., left panel open).
-
-**Fix:**
-
-```ts
-const rect = svgRef.value?.getBoundingClientRect()
-const wPos = screenToWorld(
-  event.sourceEvent.clientX - (rect?.left ?? 0),  // ← subtract left offset
-  event.sourceEvent.clientY - (rect?.top ?? 0),
-)
-```
-
-Result: Accurate node positioning regardless of canvas offset in viewport.
-
-### 6. Directional Rubber-Band Selection (CAD window vs. crossing)
-
-**Behavior (matches AutoCAD/Revit):**
-
-- **Left→Right drag (window):** solid blue box — selects only fully-enclosed elements
-- **Right→Left drag (crossing):** dashed green box — selects anything the box touches
-
-**Implementation:**
-
-1. **State tracking:** `const selectionMode = ref<'window' | 'crossing' | null>(null)`
-2. **Direction detection (in mousemove.select):**
-
-   ```ts
-   selectionMode.value = cx >= _selStart.sx ? 'window' : 'crossing'
-   ```
-3. **Visual feedback:** Template div changes border/fill style based on mode:
-
-   - Window: solid #3b82f6 (blue) border, light blue fill
-   - Crossing: dashed #22c55e (green) border, light green fill
-4. **Selection logic:**
-
-   - Nodes: always select if inside box (same for both modes)
-   - Members:
-     - **Window**: both endpoints must be inside box (strict containment)
-     - **Crossing**: member line touches/intersects box (uses `memberTouchesRect()` helper)
-5. **Helper functions:**
-
-   - `segmentsIntersect()`: standard line-segment intersection test
-   - `memberTouchesRect()`: checks if member line intersects rectangle (either endpoint inside OR crosses an edge)
-
-Result: Professional, intuitive selection behavior that engineers recognize from CAD software.
-
-### Verification
-
-✅ Unit tests: 239 pass (TypeScript compilation clean)
-✅ E2E tests: 53 workspace tests pass
-✅ All interactions verified:
-
-1. Member hit area: zoom out, click member — responds reliably
-2. Deselect: click node → click empty canvas → selection clears
-3. Ghost line: M → click node → move mouse → dashed line follows
-4. Cursor: L/D/R → cursor changes to crosshair; hover member in non-SELECT → default cursor
-5. Node drag: right panel open, drag node → accurate position (rect.left correction)
-6. Directional selection: left→right drag → blue box, window selection; right→left → green box, crossing selection

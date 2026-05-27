@@ -4,6 +4,7 @@ import { useLoadsStore } from '@/stores/loadsStore'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useCanvasTool } from '@/composables/useCanvasTool'
+import { useCanvasMode } from '@/composables/useCanvasMode'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import type { LoadCaseCategory } from '@/types/loadCases'
 
@@ -14,12 +15,14 @@ const loads = useLoadsStore()
 const structure = useStructureStore()
 const settings = useSettingsStore()
 const { activeTool, pendingLoadNodeId, pendingLoadMemberId, editingLoadId, setEditingLoad } = useCanvasTool()
+const { cameraMode } = useCanvasMode()
 
 const loadType = ref<'point_load' | 'distributed_load' | 'moment'>('point_load')
 const targetNodeId = ref('')
 const targetMemberId = ref('')
 const fx = ref(0)
 const fy = ref(-10)
+const fz = ref(0)
 const mz = ref(10)
 const w1 = ref(-10)
 const w2 = ref(-10)
@@ -63,6 +66,7 @@ watch(editingLoadId, (id) => {
     targetNodeId.value = load.nodeId
     fx.value = settings.toForce(load.fx)
     fy.value = settings.toForce(load.fy)
+    fz.value = settings.toForce(load.fz ?? 0)
     loadCase.value = load.loadCase ?? 'D'
   } else if (load.type === 'distributed_load') {
     loadType.value = 'distributed_load'
@@ -84,7 +88,7 @@ function addLoad() {
     const id = editingLoadId.value
     const labelData = loadLabel.value ? { label: loadLabel.value } : {}
     if (loadType.value === 'point_load') {
-      loads.updateLoad(id, { fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), loadCase: loadCase.value, ...labelData })
+      loads.updateLoad(id, { fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), fz: settings.fromForce(fz.value), loadCase: loadCase.value, ...labelData })
     } else if (loadType.value === 'distributed_load') {
       loads.updateLoad(id, { w1: settings.fromForce(w1.value), w2: settings.fromForce(w2.value), direction: direction.value, loadCase: loadCase.value, ...labelData })
     } else {
@@ -96,7 +100,7 @@ function addLoad() {
   if (loadType.value === 'point_load') {
     const nodeId = targetNodeId.value || selectedNodeId.value
     if (!nodeId) return
-    loads.addPointLoad({ nodeId, fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), loadCase: loadCase.value })
+    loads.addPointLoad({ nodeId, fx: settings.fromForce(fx.value), fy: settings.fromForce(fy.value), fz: settings.fromForce(fz.value), loadCase: loadCase.value })
   } else if (loadType.value === 'distributed_load') {
     const memberId = targetMemberId.value || selectedMemberId.value
     if (!memberId) return
@@ -155,6 +159,7 @@ function cancelEdit() {
       </label>
       <NumberInput :label="`Fx`" :unit="settings.forceUnit" :step="1" :model-value="fx" @update:model-value="v => fx = v" />
       <NumberInput :label="`Fy`" :unit="settings.forceUnit" :step="1" :model-value="fy" @update:model-value="v => fy = v" />
+      <NumberInput v-if="cameraMode === '3d'" :label="`Fz`" :unit="settings.forceUnit" :step="1" :model-value="fz" @update:model-value="v => fz = v" />
     </template>
 
     <template v-else-if="loadType === 'distributed_load'">

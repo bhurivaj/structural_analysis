@@ -3,42 +3,45 @@ import { test, expect } from '@playwright/test'
 // Helper: build a simple cantilever with one point load and run analysis
 async function setupAndRunAnalysis(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
   await page.goto('/workspace')
-  await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+  await page.locator('#structure-canvas canvas').waitFor({ state: 'attached', timeout: 8000 })
 
-  const svg = await page.locator('#structure-canvas').boundingBox()
-  const cx = svg!.x + svg!.width / 2
-  const cy = svg!.y + svg!.height / 2
+  const canvasBox = await page.locator('#structure-canvas').boundingBox()
+  const cx = canvasBox!.x + canvasBox!.width / 2
+  const cy = canvasBox!.y + canvasBox!.height / 2
 
-  // Add two nodes
+  // Add two nodes: left (N1) and right (N2) of center
   await page.keyboard.press('n')
   await page.mouse.click(cx - 80, cy)
   await page.waitForTimeout(80)
   await page.mouse.click(cx + 80, cy)
   await page.waitForTimeout(80)
 
-  // Add member between them
+  // Add member: click N1 position, then N2 position
   await page.keyboard.press('m')
-  await page.locator('circle.node').first().click()
+  await page.mouse.click(cx - 80, cy)
   await page.waitForTimeout(50)
-  await page.locator('circle.node').last().click()
+  await page.mouse.click(cx + 80, cy)
   await page.waitForTimeout(80)
 
-  // Fix first node (fixed support = 3 DOF reactions → stable cantilever)
+  // Fix N1: SELECT mode, click N1 position
   await page.keyboard.press('s')
-  await page.locator('circle.node').first().click()
+  await page.mouse.click(cx - 80, cy)
   await page.waitForTimeout(100)
   const supportSelect = page.locator('select').filter({ hasText: 'Pinned' }).first()
-  if (await supportSelect.isVisible()) {
+  if (await supportSelect.isVisible({ timeout: 1000 }).catch(() => false)) {
     await supportSelect.selectOption('fixed')
     await page.waitForTimeout(50)
   }
 
-  // Add point load on second (free) node — default Fy=-10 kN
+  // Add point load on N2: press L, click N2 position
   await page.keyboard.press('l')
-  await page.locator('circle.node').last().click()
+  await page.mouse.click(cx + 80, cy)
   await page.waitForTimeout(150)
-  await page.click('button:has-text("Add Load")')
-  await page.waitForTimeout(100)
+  const addBtn = page.locator('button:has-text("Add Load")').first()
+  if (await addBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await addBtn.click()
+    await page.waitForTimeout(100)
+  }
 
   // Run analysis
   await page.getByRole('button', { name: '▶ Run' }).click()
@@ -125,7 +128,8 @@ test.describe('Report view — post-analysis sections', () => {
     const img = page.locator('img[alt="Structure diagram"]')
     await expect(img).toBeVisible()
     const src = await img.getAttribute('src')
-    expect(src).toMatch(/^data:image\/svg\+xml;base64,/)
+    // Three.js WebGL canvas produces PNG snapshots
+    expect(src).toMatch(/^data:image\/(png|svg\+xml);base64,/)
   })
 
   test('section 2: summary shows design result pass count', async ({ page }) => {

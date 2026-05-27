@@ -13,12 +13,14 @@ import { useLoadsStore } from '@/stores/loadsStore'
 import { useThreeInteraction } from '@/composables/useThreeInteraction'
 import { useCanvasTool } from '@/composables/useCanvasTool'
 import { useCanvasMode } from '@/composables/useCanvasMode'
+import { useCanvasViewport } from '@/composables/useCanvasViewport'
 
 type LabelItem = { key: string; text: string; x: number; y: number }
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const labels = ref<LabelItem[]>([])
 const { cameraMode, setCameraMode, workplaneZ } = useCanvasMode()
+const { viewport, setViewport } = useCanvasViewport()
 let sceneMan: SceneManager | null = null
 let structRend: StructureRenderer | null = null
 let gridRend: GridRenderer | null = null
@@ -53,8 +55,8 @@ const selectionOverlayStyle = computed(() => {
 
 function buildDeformedMap() {
   if (!solver.result?.success || !solver.showDeformed) return undefined
-  const m = new Map<string, { ux: number; uy: number }>()
-  for (const r of solver.result.nodeResults) m.set(r.nodeId, { ux: r.ux, uy: r.uy })
+  const m = new Map<string, { ux: number; uy: number; uz: number }>()
+  for (const r of solver.result.nodeResults) m.set(r.nodeId, { ux: r.ux, uy: r.uy, uz: r.uz })
   return m
 }
 
@@ -109,6 +111,10 @@ onMounted(() => {
   suppRend = new SupportRenderer(sceneMan.scene)
   sceneMan.addFrameCallback(() => {
     if (sceneMan && gridRend) gridRend.update(sceneMan, workplaneZ.value)
+    if (sceneMan) {
+      const newK = sceneMan.orthoZoom * 80
+      if (Math.abs(viewport.value.k - newK) > 0.5) setViewport({ ...viewport.value, k: newK })
+    }
     updateLabels()
   })
   attach(sceneMan, structRend, sceneMan.renderer.domElement)
@@ -149,7 +155,7 @@ defineExpose({ captureSnapshot, fitToView })
 </script>
 
 <template>
-  <div ref="containerRef" class="w-full h-full relative" :style="{ cursor: canvasCursor }">
+  <div id="structure-canvas" ref="containerRef" class="w-full h-full relative" :style="{ cursor: canvasCursor }">
     <div v-if="selectionRect" :style="selectionOverlayStyle" />
     <span
       v-for="lbl in labels" :key="lbl.key"

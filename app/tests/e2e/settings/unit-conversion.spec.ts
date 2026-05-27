@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test'
 
-async function waitForGrid(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
-  await page.locator('#grid-layer line').first().waitFor({ state: 'attached', timeout: 5000 })
+async function waitForCanvas(page: Parameters<typeof test>[1] extends (...args: infer A) => unknown ? A[1] : never) {
+  await page.locator('#structure-canvas canvas').waitFor({ state: 'attached', timeout: 8000 })
 }
 
 test.describe('Unit Conversion', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/workspace')
-    await waitForGrid(page)
+    await waitForCanvas(page)
   })
 
   test('settings button is visible for changing units', async ({ page }) => {

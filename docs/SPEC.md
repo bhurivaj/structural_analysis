@@ -36,7 +36,7 @@ src/
 
 ## Current State
 
-**✅ Completed (30/30 features):**
+**✅ Completed (32/32 features):**
 
 1. **Interactive Canvas Workspace (Three.js WebGL)**
    - Draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
@@ -58,10 +58,17 @@ src/
    - **Origin marker** — crosshair at world (0,0)
    - **Fit-to-view** — F key + button centers structure in view
 
-2. **FEM Solver**
-   - 2D Frame + Truss analysis via matrix stiffness method
-   - Nodes, members, loads (point, distributed, moment, supports)
-   - Calculates: displacements, reactions, member end forces
+2. **FEM Solver (3D — Phase 3 ✅) + 3D UI Bridge (Phase 4 ✅)**
+   - **Always-3D** Frame + Truss analysis via matrix stiffness method (2D structures fall out naturally when z=0)
+   - **Frame:** 6 DOF/node (ux, uy, uz, θx, θy, θz); **Truss:** 3 DOF/node (ux, uy, uz)
+   - Full 3D Euler-Bernoulli beam element (12×12); 3D truss element (6×6); local axis via Gram-Schmidt
+   - Approximate St-Venant torsion constant J from section geometry (CHS/RHS/open sections)
+   - Calculates: displacements (ux/uy/uz/rx/ry/rz), reactions (6 components), member forces (N, Vy, Vz, My, Mz, T)
+   - Backward-compat aliases: V=Vy, M=Mz for 2D diagram rendering
+   - **Phase 4 UI:** Fz input in LoadPanel (3D mode); roller-Z option in NodePanel; Fz arrow in canvas
+   - **Phase 4 Results:** displacement table (ux/uy/uz/rx/ry/θz), reactions table (Rx/Ry/Rz/Mx/My/Mz)
+   - **Phase 4 Diagrams:** Vz / My / T diagram modes in DiagramPanel (visible only when 3D forces are non-zero)
+   - **Phase 4 Deformed shape:** 3D deformed shape uses uz + node.z for Z offset in StructureRenderer
 
 3. **Steel Profile Database**
    - **TIS 1228 Thai standard — 374 profiles total** (extracted from single source of truth: steel.xlsx)
@@ -105,8 +112,8 @@ src/
 
 8. **Testing**
    - **132 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions
-   - **386 Vitest unit tests** across 23 test files — added **generateSelfWeight** (8 cases) and **computeEnvelopeDiagrams** (6 cases)
-   - **Total: 518 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
+   - **455 Vitest unit tests** across 28 test files — added Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof
+   - **Total: ~587 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
@@ -269,10 +276,18 @@ src/
 
 **Key Types** (in `src/types/`):
 
-- `StructureNode`: { id, x, y, z?, support, rollerAxis?, label } — z optional (default 0); shown in NodePanel only when 3D mode active
-- `Member`: { id, startNodeId, endNodeId, steelProfileId, E, A, I, isTruss, tensionOnly?, label? }
+- `StructureNode`: { id, x, y, z?, support, rollerAxis?, label } — z optional (default 0); rollerAxis: 'x'|'y'|'z'
+- `Member`: { id, startNodeId, endNodeId, steelProfileId, E, A, I, isTruss, tensionOnly?, label?, Iy?, Iz?, J? }
+  - Iy = I about local y-axis (weak axis, lateral/XZ bending = profile.Iy)
+  - Iz = I about local z-axis (strong axis, gravity/XY bending = profile.Ix)
+  - J  = torsion constant (approximated from section geometry)
 - `Load`: PointLoad | DistributedLoad | MomentLoad
+  - `PointLoad`: { fx, fy, fz? } — fz added for out-of-plane force (no UI yet; Phase 4)
 - `SteelProfile`: { id, standard, profileClass, d, bf, tf, tw, A, Ix, Iy, Sx, E, Fy, ... }
+- `NodeResult`: { nodeId, ux, uy, uz, rx, ry, rz } — all in mm / rad
+- `ReactionResult`: { nodeId, rx, ry, rz, mx, my, mz } — forces kN, moments kN·m
+- `MemberResult`: { memberId, stations, N, V, M, Vy, Vz, My, Mz, T, endForces }
+  - V=Vy and M=Mz as backward-compat aliases for 2D diagram rendering
 - `SolverResult`: { success, nodeResults, reactions, memberResults }
 
 **Settings Store State:**
@@ -341,7 +356,7 @@ Known limitations and missing functionality compared to a full-featured structur
 | 3 | **Label only settable after creation** | `LoadPanel.vue` shows the label field only in edit mode (`v-if="editingLoadId"`). Must create first, then click to rename. |
 | 4 | **Canvas shows resultant magnitude only** | Arrow label = `|F|` resultant. No visual breakdown of Fx/Fy components on canvas. |
 | 5 | **Multiple loads on same node render as separate arrows** | Solver sums correctly, but canvas draws one arrow per load entry — visually cluttered when stacked. |
-| 6 | **2D only (no Fz)** | `PointLoad` type has only `fx`, `fy`. No out-of-plane force component. |
+| 6 | ~~**No Fz UI input**~~ | ✅ **Resolved** — Fz input field in LoadPanel (Phase 4). Mx/My moment loads not yet supported in UI (niche). |
 | 7 | **No self-weight generation** | No auto-load from member section + material density. All loads must be entered manually. |
 
 ---
@@ -356,6 +371,8 @@ Known limitations and missing functionality compared to a full-featured structur
 6. ~~**User Guide**~~ — ✅ Created `docs/USER_GUIDE.md`
 7. ~~**In-app Help page**~~ — ✅ Done (`/help` route + `HelpView.vue`)
 8. ~~**Three.js canvas Phase 1**~~ — ✅ Done (WebGL renderer, dual cameras, all interactions ported)
+9. ~~**3D FEM solver (Phase 3)**~~ — ✅ Done (frame 6-DOF, truss 3-DOF, 12×12 element stiffness, local axis frame, approximate J, Vy/Vz/My/Mz/T member forces)
+10. ~~**3D UI bridge (Phase 4)**~~ — ✅ Done (Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape with uz)
 
 ### 3D Canvas Roadmap (In Progress)
 
@@ -363,8 +380,8 @@ Known limitations and missing functionality compared to a full-featured structur
 |-------|-------|--------|
 | **Phase 1** | Three.js visual/interaction replacement (2D parity) | ✅ Done |
 | **Phase 2** | 3D node placement, work plane Z, camera presets + axes gizmo | ✅ Done |
-| **Phase 3** | 3D FEM solver — frame 6-DOF/node (ux,uy,uz,rx,ry,rz), truss 3-DOF/node | 🔲 |
-| **Phase 4** | 3D loads (Fz, out-of-plane dist loads, supports with 3-axis constraints) | 🔲 |
+| **Phase 3** | 3D FEM solver — frame 6-DOF/node (ux,uy,uz,rx,ry,rz), truss 3-DOF/node | ✅ Done |
+| **Phase 4** | 3D UI bridge — Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape | ✅ Done |
 
 **Phase 2 status (✅ Done):**
 - ✅ `workplaneZ` shared state — `useCanvasMode.ts` (`workplaneZ` ref + `setWorkplaneZ`); all composable callers share the same module-level ref
@@ -377,6 +394,30 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Axes gizmo — `THREE.AxesHelper` added/removed via `SceneManager.setMode()` lifecycle (appears in 3D only)
 - ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; renders only in 3D mode (`v-if="cameraMode === '3d'"`) at `absolute top-12 right-2`
 - ✅ Tests: 408 unit tests (25 files) + 8 E2E tests in `workplane-3d.spec.ts`
+
+**Phase 4 status (✅ Done):**
+- ✅ `LoadPanel.vue` — Fz input field (shown in 3D camera mode); included in add/update/edit round-trip
+- ✅ `NodePanel.vue` — roller-Z "Out-of-Plane (Z)" option added
+- ✅ `LoadsRenderer.ts` — Fz arrow rendered in Three.js Z direction
+- ✅ `DisplacementTable.vue` — uz, rx, ry, θz columns (was: ux, uy, θz only)
+- ✅ `ReactionTable.vue` — Rz, Mx, My, Mz columns (was: Rx, Ry, Mz only)
+- ✅ `DiagramPanel.vue` — Vz / My / T diagram modes; violet buttons; hidden for pure-2D structures
+- ✅ `ReportResultsSections.vue` — reactions and displacements sections mirrored with full 3D columns
+- ✅ `StructureCanvas.vue` + `StructureRenderer.ts` — deformed shape uses `uz + node.z` for Z offset (was hardcoded 0.01)
+
+**Phase 3 status (✅ Done):**
+- ✅ Types: `Member` + Iy/Iz/J; `StructureNode.rollerAxis` + 'z'; `NodeResult` + uz/rx/ry; `ReactionResult` + rz/mx/my; `MemberResult` + Vy/Vz/My/Mz/T; `PointLoad` + fz
+- ✅ DOF: `DOF_PER_NODE` { frame: 6, truss: 3 }; `buildDofMap`/`totalDof` unchanged (already generic)
+- ✅ `geometry3D.ts` — `memberLength3D`, `memberDirectionCosines`, `localAxisFrame` (Gram-Schmidt, ey≈globalY for horizontal members), `transformationMatrix12x12`
+- ✅ `elementStiffness3D.ts` — `frameElement3D` (12×12 global), `trussElement3D` (6×6 global)
+- ✅ `approximateJ.ts` — approximate J for CHS/RHS/open sections from section geometry
+- ✅ `assembler.ts` — uses 3D element functions; Iz=strong axis, Iy=weak axis fallbacks
+- ✅ `loadVector.ts` — fz→DOF[2]; mz→DOF[5]; dist load DOF index shift for 6-DOF frames
+- ✅ `boundaryConditions.ts` — fixed(6DOF)/pinned(0-2)/roller(x/y/z) for frame; fixed(0-2)/pinned(0-2) for truss
+- ✅ `postProcessor.ts` — uz/rx/ry extraction; 6-component reactions; N/Vy/Vz/My/Mz/T per member; V=Vy/M=Mz aliases
+- ✅ `utils/memberProps.ts` — `memberPropsFromProfile()` central mapping with correct Iz=profile.Ix, Iy=profile.Iy
+- ✅ Tests: geometry3D.test.ts (14), elementStiffness3D.test.ts (13), solver3D.test.ts (16); updated dof/loadVector/boundaryConditions tests
+- ✅ Backward compat: all z=0 structures produce identical N/V/M results; uz/rx/ry = 0; V=Vy alias correct
 
 **Phase 1d status:**
 - ✅ Grid rendering — `GridRenderer.ts` adaptive power-of-2 grid in 2D + `THREE.GridHelper` (XY plane) in 3D + amber origin marker; runs every frame via `SceneManager.addFrameCallback()`

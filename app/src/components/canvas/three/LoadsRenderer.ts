@@ -36,6 +36,7 @@ export class LoadsRenderer {
     const origin = new THREE.Vector3(node.x, node.y, node.z ?? 0)
     if (load.fx !== 0) this.arrow(origin, new THREE.Vector3(Math.sign(load.fx), 0, 0), ARROW_LEN, C_FORCE)
     if (load.fy !== 0) this.arrow(origin, new THREE.Vector3(0, Math.sign(load.fy), 0), ARROW_LEN, C_FORCE)
+    if ((load.fz ?? 0) !== 0) this.arrow(origin, new THREE.Vector3(0, 0, Math.sign(load.fz!)), ARROW_LEN, C_FORCE)
   }
 
   private renderDist(load: DistributedLoad, nodeMap: Map<string, StructureNode>, memberMap: Map<string, Member>) {

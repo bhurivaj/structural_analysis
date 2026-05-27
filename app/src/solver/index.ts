@@ -73,6 +73,11 @@ export function runFemAnalysis(
           N: [0, 0, 0],
           V: [0, 0, 0],
           M: [0, 0, 0],
+          Vy: [0, 0, 0],
+          Vz: [0, 0, 0],
+          My: [0, 0, 0],
+          Mz: [0, 0, 0],
+          T: [0, 0, 0],
           endForces: [0, 0, 0, 0, 0, 0] as [number, number, number, number, number, number],
         })
         const removedResults = members

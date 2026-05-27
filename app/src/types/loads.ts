@@ -6,6 +6,7 @@ export interface PointLoad {
   nodeId: string
   fx: number
   fy: number
+  fz?: number
   label?: string
   loadCase?: LoadCaseCategory
 }
