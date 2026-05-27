@@ -70,7 +70,7 @@ function updateScene() {
     loads.pointLoads, loads.distributedLoads, loads.momentLoads,
     structure.nodes, structure.members
   )
-  suppRend?.update(structure.nodes, '3d')
+  suppRend?.update(structure.nodes)
 }
 
 function updateLabels() {

@@ -45,10 +45,11 @@ src/
    - Undo/Redo with debounced snapshots (up to 50 entries)
    - Session persistence: auto-save to localStorage + resume dialog
    - **Three.js canvas (Phase 1–5 complete):** replaced D3/SVG with WebGL renderer; 2D mode removed
-     - `SceneManager.ts` — single OrthographicCamera (rotation enabled), OrbitControls, resize loop; preset views (top/front/side/iso) for ortho camera
+     - `SceneManager.ts` — single OrthographicCamera, OrbitControls (LEFT=PAN, MIDDLE=ROTATE, RIGHT=ROTATE), resize loop; preset views (top/front/side/iso); default top view (camera at Y=10 looking down, up=-Z)
      - `StructureRenderer.ts` — nodes (Points), members (LineSegments), deformed shape (LineDashedMaterial), ep handles, ghost line, snap ring
-     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls; always XY-plane placement with Z = workplaneZ
-     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane), node/member screen-space hit tests
+     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls; camera-aware plane projection: top view → XZ plane, front/side view → XY plane
+     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane), `clientToWorldXZ` (XZ plane), node/member screen-space hit tests
+     - `threeViewHelpers.ts` — extracted helpers: `isTopView()` (dominant-Y-offset check), `toWorldOnPlane()` (routes to correct projection), `applyRubberBandSelection()` (XZ/XY plane aware)
      - **WorkplaneControls** always visible (top-right): Z elevation input + preset view buttons
    - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive power-of-2 grid visible at all zoom levels
    - **Shift+drag node** — snap to nearest integer world unit
@@ -141,6 +142,12 @@ src/
      - **Roller:** Triangle + two circles for wheels; direction-aware (X-axis: points left, wheels vertical; Y-axis: points down, wheels horizontal)
    - **Roller direction (axis X vs Y):** Separated rendering logic so horizontal roller (constrained in X) displays correctly with left-pointing triangle and vertically-stacked wheels
    - **LoadPanel type auto-update:** Fixed watch on `activeTool` with `{ immediate: true }` so load type is set when panel mounts after tool already active
+   - **Work plane grid (XZ):** `GridRenderer.ts` fully rewritten — uses `THREE.GridHelper` (horizontal XZ plane) at `position.y = workplaneZ`; grid is now visible from the default top view; rebuilds only when elevation changes; removed dead 2D branch
+   - **Camera rotation (mouse):** `SceneManager` OrbitControls mouseButtons fixed to `{ LEFT: PAN, MIDDLE: ROTATE, RIGHT: ROTATE }` + `contextmenu` preventDefault; left-click owned by interaction layer so PAN does not interfere; right-drag and middle-drag both rotate
+   - **useThreeInteraction camera-aware:** Removed global early-return on `toWorld()`; each tool branch now computes world coords independently; hit tests (hitNode, hitMember) always work regardless of camera angle; top view projects onto XZ plane, front view onto XY plane; node drag and rubber-band selection both handle XZ vs XY correctly
+   - **threeViewHelpers.ts (new file):** Extracted from `useThreeInteraction.ts` (was 332 lines, now 277) to stay within 300-line limit; contains `isTopView`, `toWorldOnPlane`, `applyRubberBandSelection`
+   - **LoadsRenderer redesign:** `LoadsRenderer.ts` fully rewritten — global maxF across all loads for proportional scaling; arrow head always at node/member (tail offset = nodePos − dir × len); length scales as `ARROW_MIN + (ARROW_MAX − ARROW_MIN) × (|f| / maxF)`; negative force → arrow points in correct direction (above member for downward-positive axis); distributed loads: profile baseline + member baseline via `polyLine()`
+   - **SupportRenderer redesign (mesh):** `SupportRenderer.ts` fully rewritten — switched from single `LineSegments` wireframe to `THREE.Mesh` filled geometry; **Pin** (blue-600): inverted cone + amber hinge torus + slate ground disc; **Fixed** (slate-900): solid box + `EdgesGeometry` wireframe outline + wider ground plate; **Roller** (cyan-600): same cone + hinge ring + flat rail plate + cylinder wheels sized/oriented per `rollerAxis`; `rollerAxis: 'z'` now fully supported; removed ~100 lines of dead 2D symbol code; `mode` parameter removed
 
 10. **Session Management**
     - Auto-save 800ms after changes
@@ -391,11 +398,12 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ `useCanvasKeys.ts` (new composable) — keyboard handlers extracted from `useThreeInteraction.ts` (ESCAPE via `onEscape` callback); keeps interaction file under 300 lines
 - ✅ Node placement at work plane Z — `ADD_NODE` in 3D mode projects onto horizontal XZ plane via `clientToWorldXZ(planeY=workplaneZ)`, snaps X+Z, stores `{ x, y: workplaneZ, z }`
 - ✅ Node drag at node's own plane — `_nodeDrag` stores `{ planeVal, is3d, origX, origY, origZ, startWx, startW2 }`; in 3D drag updates X+Z (keeps Y/elevation constant); in 2D drag updates X+Y
-- ✅ Grid at workplane Y elevation — `GridRenderer.update(sceneMan, workplaneZ)` places horizontal `GridHelper` (XZ plane, no rotation) via `helper.position.y = workplaneZ`; rebuilds when elevation changes
+- ✅ Grid at workplane Y elevation — `GridRenderer.update(sceneMan, workplaneZ)` places `THREE.GridHelper` (XZ horizontal plane, visible from top view) via `helper.position.y = workplaneZ`; origin crosshair in XZ plane with small Y offset; rebuilds only when elevation changes (cached with `lastWorkplaneY`); dead 2D branch removed
 - ✅ Preset camera views — `SceneManager.setPresetView('top'|'front'|'side'|'iso')` with proper `camera.up` for gimbal-lock-safe top view
 - ✅ Axes gizmo — `THREE.AxesHelper` added/removed via `SceneManager.setMode()` lifecycle (appears in 3D only)
 - ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; always visible at `absolute top-2 right-2`
-- ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled; no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
+- ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled (RIGHT=ROTATE, MIDDLE=ROTATE, LEFT=PAN); default top view (Y=10, lookAt origin, up=-Z); no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
+- ✅ **Interaction plane awareness:** `useThreeInteraction.ts` uses `isTopView()` (from `threeViewHelpers.ts`) to select projection plane — top view → XZ plane (`clientToWorldXZ`), front/side view → XY plane (`clientToWorld`); node drag, ADD_NODE placement, and rubber-band selection all respect current camera orientation
 - ✅ Tests: 451 unit tests (28 files) + 150 E2E tests (15 spec files)
 
 **Phase 4 status (✅ Done):**
@@ -426,8 +434,8 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Grid rendering — `GridRenderer.ts` adaptive power-of-2 grid in 2D + `THREE.GridHelper` (XY plane) in 3D + amber origin marker; runs every frame via `SceneManager.addFrameCallback()`
 - ✅ Snap to grid — G key wired to `toggleSnap()` in `useThreeInteraction.ts`
 - ✅ Node Z input — `z?: number` in `StructureNode`; Z field shown in `NodePanel` when 3D mode; `StructureRenderer` uses `n.z ?? 0`; shared state via `useCanvasMode.ts`
-- ✅ Load arrows (Three.js) — `LoadsRenderer.ts`: point loads (Fx/Fy arrows), distributed loads (multi-arrow along member), moment loads (arc ring); wired into `StructureCanvas.vue` via `loadsStore` watch
-- ✅ Support symbols (Three.js) — `SupportRenderer.ts`: batched `LineSegments` geometry; pinned triangle, fixed bar+hatch, roller triangle+wheels (rollerAxis 'x'/'y'); wired into `StructureCanvas.vue`
+- ✅ Load arrows (Three.js) — `LoadsRenderer.ts`: point loads (Fx/Fy/Fz arrows), distributed loads (multi-arrow + profile/member baseline via `polyLine()`), moment loads (arc ring); proportional scaling by global maxF; correct direction (head at node/member surface); wired into `StructureCanvas.vue`
+- ✅ Support symbols (Three.js) — `SupportRenderer.ts`: `THREE.Mesh` filled geometry; Pin (blue-600 cone + amber hinge ring + ground disc), Fixed (slate-900 box + EdgesGeometry + ground plate), Roller (cyan-600 cone + rail plate + cylinder wheels, rollerAxis 'x'/'y'/'z' all supported); wired into `StructureCanvas.vue`
 - ✅ Node/Member labels — HTML overlay in `StructureCanvas.vue`: per-frame `updateLabels()` via `addFrameCallback`; projects node/member-midpoint to screen pixels; renders as `<span>` with `pointer-events: none`; node labels = N1/N2/… (slate-500), member labels = M1/M2/… (slate-400)
 
 ---
