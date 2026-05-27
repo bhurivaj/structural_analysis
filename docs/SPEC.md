@@ -11,7 +11,7 @@
 - State: Pinia (stores: structureStore, loadsStore, steelProfileStore, solverStore, settingsStore)
 - Routing: Vue Router 4
 - Styling: Tailwind CSS v4
-- Canvas: Three.js r0.184 (WebGL renderer, OrthographicCamera/PerspectiveCamera, OrbitControls)
+- Canvas: Three.js r0.184 (WebGL renderer, OrthographicCamera, OrbitControls — always-3D mode)
 - FEM Math: mathjs (lusolve for matrix solve)
 - Testing: Vitest (unit), Playwright (e2e)
 
@@ -36,7 +36,7 @@ src/
 
 ## Current State
 
-**✅ Completed (32/32 features):**
+**✅ Completed (33/33 features):**
 
 1. **Interactive Canvas Workspace (Three.js WebGL)**
    - Draw tools: SELECT, PAN, ADD_NODE, ADD_MEMBER, ADD_POINT_LOAD, ADD_DIST_LOAD, ADD_MOMENT
@@ -44,12 +44,12 @@ src/
    - Keyboard shortcuts (S, P, N, M, L, D, R, G=snap-toggle, Delete, Ctrl+Z/Y)
    - Undo/Redo with debounced snapshots (up to 50 entries)
    - Session persistence: auto-save to localStorage + resume dialog
-   - **Three.js canvas (Phase 1 complete):** replaced D3/SVG with WebGL renderer
-     - `SceneManager.ts` — dual cameras (OrthographicCamera 2D / PerspectiveCamera 3D), OrbitControls, resize loop
+   - **Three.js canvas (Phase 1–5 complete):** replaced D3/SVG with WebGL renderer; 2D mode removed
+     - `SceneManager.ts` — single OrthographicCamera (rotation enabled), OrbitControls, resize loop; preset views (top/front/side/iso) for ortho camera
      - `StructureRenderer.ts` — nodes (Points), members (LineSegments), deformed shape (LineDashedMaterial), ep handles, ghost line, snap ring
-     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls
-     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane, 2D), `clientToWorldXZ` (horizontal XZ plane, 3D), node/member screen-space hit tests
-     - **2D/3D camera toggle button** (top-right of canvas) — switches OrthographicCamera ↔ PerspectiveCamera with `SceneManager.setMode()`
+     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls; always XY-plane placement with Z = workplaneZ
+     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane), node/member screen-space hit tests
+     - **WorkplaneControls** always visible (top-right): Z elevation input + preset view buttons
    - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive power-of-2 grid visible at all zoom levels
    - **Shift+drag node** — snap to nearest integer world unit
    - **Editable node labels** — auto-assigned N1, N2, … with inline editing
@@ -65,7 +65,7 @@ src/
    - Approximate St-Venant torsion constant J from section geometry (CHS/RHS/open sections)
    - Calculates: displacements (ux/uy/uz/rx/ry/rz), reactions (6 components), member forces (N, Vy, Vz, My, Mz, T)
    - Backward-compat aliases: V=Vy, M=Mz for 2D diagram rendering
-   - **Phase 4 UI:** Fz input in LoadPanel (3D mode); roller-Z option in NodePanel; Fz arrow in canvas
+   - **Phase 4 UI:** Fz input in LoadPanel (always visible); roller-Z option in NodePanel (always visible); Fz arrow in canvas
    - **Phase 4 Results:** displacement table (ux/uy/uz/rx/ry/θz), reactions table (Rx/Ry/Rz/Mx/My/Mz)
    - **Phase 4 Diagrams:** Vz / My / T diagram modes in DiagramPanel (visible only when 3D forces are non-zero)
    - **Phase 4 Deformed shape:** 3D deformed shape uses uz + node.z for Z offset in StructureRenderer
@@ -111,9 +111,9 @@ src/
    - Export button downloads current session as JSON
 
 8. **Testing**
-   - **132 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions
-   - **455 Vitest unit tests** across 28 test files — added Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof
-   - **Total: ~587 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
+   - **150 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions, 3D workplane
+   - **451 Vitest unit tests** across 28 test files — Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof; useCanvasMode updated for 2D removal
+   - **Total: 601 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
@@ -373,6 +373,7 @@ Known limitations and missing functionality compared to a full-featured structur
 8. ~~**Three.js canvas Phase 1**~~ — ✅ Done (WebGL renderer, dual cameras, all interactions ported)
 9. ~~**3D FEM solver (Phase 3)**~~ — ✅ Done (frame 6-DOF, truss 3-DOF, 12×12 element stiffness, local axis frame, approximate J, Vy/Vz/My/Mz/T member forces)
 10. ~~**3D UI bridge (Phase 4)**~~ — ✅ Done (Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape with uz)
+11. ~~**Remove 2D mode (Phase 5)**~~ — ✅ Done (single ortho camera, rotation always enabled, WorkplaneControls/Fz/Z always visible, 2D/3D toggle removed)
 
 ### 3D Canvas Roadmap (In Progress)
 
@@ -382,6 +383,7 @@ Known limitations and missing functionality compared to a full-featured structur
 | **Phase 2** | 3D node placement, work plane Z, camera presets + axes gizmo | ✅ Done |
 | **Phase 3** | 3D FEM solver — frame 6-DOF/node (ux,uy,uz,rx,ry,rz), truss 3-DOF/node | ✅ Done |
 | **Phase 4** | 3D UI bridge — Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape | ✅ Done |
+| **Phase 5** | Remove 2D mode — single ortho camera, rotation always on, WorkplaneControls always visible | ✅ Done |
 
 **Phase 2 status (✅ Done):**
 - ✅ `workplaneZ` shared state — `useCanvasMode.ts` (`workplaneZ` ref + `setWorkplaneZ`); all composable callers share the same module-level ref
@@ -392,8 +394,9 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Grid at workplane Y elevation — `GridRenderer.update(sceneMan, workplaneZ)` places horizontal `GridHelper` (XZ plane, no rotation) via `helper.position.y = workplaneZ`; rebuilds when elevation changes
 - ✅ Preset camera views — `SceneManager.setPresetView('top'|'front'|'side'|'iso')` with proper `camera.up` for gimbal-lock-safe top view
 - ✅ Axes gizmo — `THREE.AxesHelper` added/removed via `SceneManager.setMode()` lifecycle (appears in 3D only)
-- ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; renders only in 3D mode (`v-if="cameraMode === '3d'"`) at `absolute top-12 right-2`
-- ✅ Tests: 408 unit tests (25 files) + 8 E2E tests in `workplane-3d.spec.ts`
+- ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; always visible at `absolute top-2 right-2`
+- ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled; no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
+- ✅ Tests: 451 unit tests (28 files) + 150 E2E tests (15 spec files)
 
 **Phase 4 status (✅ Done):**
 - ✅ `LoadPanel.vue` — Fz input field (shown in 3D camera mode); included in add/update/edit round-trip
