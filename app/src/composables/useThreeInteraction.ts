@@ -7,7 +7,7 @@ import { useCanvasTool } from '@/composables/useCanvasTool'
 import { useCanvasViewport } from '@/composables/useCanvasViewport'
 import { useCanvasMode } from '@/composables/useCanvasMode'
 import { useCanvasKeys } from '@/composables/useCanvasKeys'
-import { clientToWorld, clientToWorldXZ, projectToScreen, hitNode, hitMember, segIntersectsRect } from '@/composables/threeHitTest'
+import { clientToWorld, projectToScreen, hitNode, hitMember, segIntersectsRect } from '@/composables/threeHitTest'
 
 export type SelectionRect = { x: number; y: number; w: number; h: number }
 
@@ -20,7 +20,7 @@ export function useThreeInteraction() {
   const settings = useSettingsStore()
   const { activeTool, setPendingLoadTarget } = useCanvasTool()
   const { snapPoint } = useCanvasViewport()
-  const { cameraMode, workplaneZ } = useCanvasMode()
+  const { workplaneZ } = useCanvasMode()
   const { isSpaceHeld, attach: attachKeys, detach: detachKeys } = useCanvasKeys()
 
   const selectionRect = ref<SelectionRect | null>(null)
@@ -28,11 +28,10 @@ export function useThreeInteraction() {
 
   let _selStart: { cx: number; cy: number } | null = null
   let _selDragging = false
-  let _emptyClick3d: { cx: number; cy: number } | null = null
   let _nodeDrag: {
-    nodeId: string; startWx: number; startW2: number
-    origX: number; origY: number; origZ: number
-    planeVal: number; is3d: boolean
+    nodeId: string; startWx: number; startWy: number
+    origX: number; origY: number
+    planeVal: number
   } | null = null
   let _epDrag: { endpoint: 'start' | 'end'; memberId: string } | null = null
   let _epSnapId: string | null = null
@@ -46,9 +45,6 @@ export function useThreeInteraction() {
 
   function toWorld(e: MouseEvent, planeVal = 0) {
     if (!_scene || !_canvas) return null
-    if (cameraMode.value === '3d') {
-      return clientToWorldXZ(e.clientX, e.clientY, _scene, _canvas, planeVal)
-    }
     return clientToWorld(e.clientX, e.clientY, _scene, _canvas, planeVal)
   }
 
@@ -105,21 +101,14 @@ export function useThreeInteraction() {
     const isPan = activeTool.value === 'PAN' || isSpaceHeld.value
     if (isPan) return
 
-    const z = cameraMode.value === '3d' ? workplaneZ.value : 0
-    const world = toWorld(e, z)
+    const world = toWorld(e, 0)
     if (!world) return
     const { x: wx, y: wy } = world
 
     if (activeTool.value === 'ADD_NODE') {
       e.stopPropagation()
-      if (cameraMode.value === '3d') {
-        // XZ horizontal plane: snap X and Z, keep Y = floor elevation
-        const s = snapPoint(world.x, world.z)
-        structure.addNode({ x: s.x, y: workplaneZ.value, z: s.y, support: 'free' })
-      } else {
-        const s = snapPoint(wx, wy)
-        structure.addNode({ x: s.x, y: s.y, z: 0, support: 'free' })
-      }
+      const s = snapPoint(wx, wy)
+      structure.addNode({ x: s.x, y: s.y, z: workplaneZ.value, support: 'free' })
       return
     }
     if (activeTool.value === 'ADD_MEMBER') {
@@ -159,14 +148,11 @@ export function useThreeInteraction() {
       if (nid) {
         e.stopPropagation()
         const n = structure.nodeById(nid)!
-        const is3d = cameraMode.value === '3d'
-        const planeVal = is3d ? (n.y ?? 0) : 0
         _nodeDrag = {
           nodeId: nid,
-          startWx: wx,
-          startW2: is3d ? world.z : wy,  // Z on floor (3D) or Y in elevation (2D)
-          origX: n.x, origY: n.y, origZ: n.z ?? 0,
-          planeVal, is3d,
+          startWx: wx, startWy: wy,
+          origX: n.x, origY: n.y,
+          planeVal: 0,
         }
         if (!structure.selectedNodeIds.includes(nid)) structure.selectNode(nid, e.shiftKey)
         return
@@ -174,31 +160,25 @@ export function useThreeInteraction() {
       const mid = _scene && _canvas ? hitMember(e.clientX, e.clientY, structure.members, structure.nodeById, _scene, _canvas) : null
       if (mid) { e.stopPropagation(); structure.selectMember(mid, e.shiftKey); return }
 
-      if (cameraMode.value === '3d') {
-        // Empty space in 3D: OrbitControls handles rotation; track for click-to-deselect
-        _emptyClick3d = { cx: e.clientX, cy: e.clientY }
-        return  // no stopPropagation — let OrbitControls rotate
-      }
+      // Empty space: start rubber-band selection (stop propagation to prevent OrbitControls)
       e.stopPropagation()
       _selStart = { cx: e.clientX, cy: e.clientY }
     }
   }
 
   function handleMouseMove(e: MouseEvent) {
-    const is3d = cameraMode.value === '3d'
-    // In 3D, plane = horizontal XZ at Y elevation; in 2D, plane = vertical XY at Z depth
-    let planeVal = workplaneZ.value
+    let planeVal = 0
     if (_epDrag) {
       const fixedId = _epDrag.endpoint === 'start'
         ? structure.memberById(_epDrag.memberId)?.endNodeId
         : structure.memberById(_epDrag.memberId)?.startNodeId
       const fixedNode = fixedId ? structure.nodeById(fixedId) : null
-      planeVal = is3d ? (fixedNode?.y ?? 0) : (fixedNode?.z ?? 0)
+      planeVal = fixedNode?.z ?? 0
     } else {
       const pendingStart = structure.pendingMemberStartNodeId
         ? structure.nodeById(structure.pendingMemberStartNodeId)
         : null
-      planeVal = is3d ? (pendingStart?.y ?? workplaneZ.value) : (pendingStart?.z ?? workplaneZ.value)
+      planeVal = pendingStart?.z ?? workplaneZ.value
     }
     const world = toWorld(e, planeVal)
     _mouseWorld = world
@@ -210,15 +190,10 @@ export function useThreeInteraction() {
     if (_nodeDrag && e.buttons === 1) {
       const base = toWorld(e, _nodeDrag.planeVal)
       if (base) {
-        const w2 = _nodeDrag.is3d ? base.z : base.y
         let nx = _nodeDrag.origX + (base.x - _nodeDrag.startWx)
-        let nw2 = (_nodeDrag.is3d ? _nodeDrag.origZ : _nodeDrag.origY) + (w2 - _nodeDrag.startW2)
-        if (e.shiftKey) { nx = Math.round(nx); nw2 = Math.round(nw2) }
-        if (_nodeDrag.is3d) {
-          structure.updateNode(_nodeDrag.nodeId, { x: nx, z: nw2 })
-        } else {
-          structure.updateNode(_nodeDrag.nodeId, { x: nx, y: nw2 })
-        }
+        let ny = _nodeDrag.origY + (base.y - _nodeDrag.startWy)
+        if (e.shiftKey) { nx = Math.round(nx); ny = Math.round(ny) }
+        structure.updateNode(_nodeDrag.nodeId, { x: nx, y: ny })
       }
     }
 
@@ -271,12 +246,6 @@ export function useThreeInteraction() {
     }
 
     _selStart = null; _selDragging = false; selectionRect.value = null
-
-    if (_emptyClick3d) {
-      const dx = e.clientX - _emptyClick3d.cx, dy = e.clientY - _emptyClick3d.cy
-      if (Math.hypot(dx, dy) < 5 && activeTool.value === 'SELECT' && !e.shiftKey) structure.clearSelection()
-      _emptyClick3d = null
-    }
   }
 
   function attach(scene: SceneManager, rend: StructureRenderer, canvas: HTMLElement) {

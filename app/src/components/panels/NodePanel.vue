@@ -2,13 +2,11 @@
 import { computed } from 'vue'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useCanvasMode } from '@/composables/useCanvasMode'
 import type { SupportType, RollerAxis } from '@/types/structure'
 import NumberInput from '@/components/ui/NumberInput.vue'
 
 const structure = useStructureStore()
 const settings = useSettingsStore()
-const { cameraMode } = useCanvasMode()
 
 const selectedNode = computed(() => {
   if (structure.selectedNodeIds.length !== 1) return null
@@ -58,7 +56,6 @@ const supportOptions: { value: SupportType; label: string }[] = [
       @update:model-value="v => update('y', settings.fromLength(v))"
     />
     <NumberInput
-      v-if="cameraMode === '3d'"
       label="Z"
       :unit="settings.lengthUnit"
       :model-value="settings.toLength(selectedNode.z ?? 0)"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { SceneManager } from './three/SceneManager'
 import { StructureRenderer } from './three/StructureRenderer'
 import { GridRenderer } from './three/GridRenderer'
@@ -19,7 +19,7 @@ type LabelItem = { key: string; text: string; x: number; y: number }
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const labels = ref<LabelItem[]>([])
-const { cameraMode, setCameraMode, workplaneZ } = useCanvasMode()
+const { workplaneZ } = useCanvasMode()
 const { viewport, setViewport } = useCanvasViewport()
 let sceneMan: SceneManager | null = null
 let structRend: StructureRenderer | null = null
@@ -70,7 +70,7 @@ function updateScene() {
     loads.pointLoads, loads.distributedLoads, loads.momentLoads,
     structure.nodes, structure.members
   )
-  suppRend?.update(structure.nodes, cameraMode.value)
+  suppRend?.update(structure.nodes, '3d')
 }
 
 function updateLabels() {
@@ -90,13 +90,6 @@ function updateLabels() {
     items.push({ key: `m-${m.id}`, text: m.label ?? '', x: sx - cr.left + 6, y: sy - cr.top - 10 })
   }
   labels.value = items
-}
-
-function toggleCameraMode() {
-  const next = cameraMode.value === '2d' ? '3d' : '2d'
-  setCameraMode(next)
-  sceneMan?.setMode(next)
-  suppRend?.update(structure.nodes, next)
 }
 
 function handlePresetView(view: 'top' | 'front' | 'side' | 'iso') {
@@ -163,20 +156,9 @@ defineExpose({ captureSnapshot, fitToView })
       :class="lbl.key.startsWith('n-') ? 'text-slate-500' : 'text-slate-400'"
       :style="{ left: `${lbl.x}px`, top: `${lbl.y}px` }"
     >{{ lbl.text }}</span>
-    <button
-      class="absolute top-2 right-2 z-10 px-2.5 py-1 text-xs font-mono font-semibold rounded border shadow-sm transition-colors select-none"
-      :class="cameraMode === '3d'
-        ? 'bg-blue-600 text-white border-blue-700'
-        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'"
-      @click="toggleCameraMode"
-      title="Toggle 2D / 3D camera"
-    >
-      {{ cameraMode === '2d' ? '2D' : '3D' }}
-    </button>
     <WorkplaneControls
-      v-if="cameraMode === '3d'"
       :on-preset-view="handlePresetView"
-      class="absolute top-12 right-2 z-10"
+      class="absolute top-2 right-2 z-10"
     />
   </div>
 </template>

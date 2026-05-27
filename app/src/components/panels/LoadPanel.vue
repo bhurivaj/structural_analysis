@@ -4,7 +4,6 @@ import { useLoadsStore } from '@/stores/loadsStore'
 import { useStructureStore } from '@/stores/structureStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useCanvasTool } from '@/composables/useCanvasTool'
-import { useCanvasMode } from '@/composables/useCanvasMode'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import type { LoadCaseCategory } from '@/types/loadCases'
 
@@ -15,7 +14,6 @@ const loads = useLoadsStore()
 const structure = useStructureStore()
 const settings = useSettingsStore()
 const { activeTool, pendingLoadNodeId, pendingLoadMemberId, editingLoadId, setEditingLoad } = useCanvasTool()
-const { cameraMode } = useCanvasMode()
 
 const loadType = ref<'point_load' | 'distributed_load' | 'moment'>('point_load')
 const targetNodeId = ref('')
@@ -159,7 +157,7 @@ function cancelEdit() {
       </label>
       <NumberInput :label="`Fx`" :unit="settings.forceUnit" :step="1" :model-value="fx" @update:model-value="v => fx = v" />
       <NumberInput :label="`Fy`" :unit="settings.forceUnit" :step="1" :model-value="fy" @update:model-value="v => fy = v" />
-      <NumberInput v-if="cameraMode === '3d'" :label="`Fz`" :unit="settings.forceUnit" :step="1" :model-value="fz" @update:model-value="v => fz = v" />
+      <NumberInput :label="`Fz`" :unit="settings.forceUnit" :step="1" :model-value="fz" @update:model-value="v => fz = v" />
     </template>
 
     <template v-else-if="loadType === 'distributed_load'">
