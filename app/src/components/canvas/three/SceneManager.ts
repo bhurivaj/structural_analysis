@@ -38,9 +38,11 @@ export class SceneManager {
       -INITIAL_FRUSTUM_H * a / 2, INITIAL_FRUSTUM_H * a / 2,
       INITIAL_FRUSTUM_H / 2, -INITIAL_FRUSTUM_H / 2, -1000, 1000
     )
-    // Default: top view (looking down Y axis, up = -Z)
-    this.orthoCamera.position.set(0, 10, 0)
-    this.orthoCamera.up.set(0, 0, -1)
+    // Default: iso view (looking from upper-right-front, up = Y)
+    const d = INITIAL_FRUSTUM_H * 1.5
+    const t = d / Math.sqrt(3)
+    this.orthoCamera.position.set(t, t, t)
+    this.orthoCamera.up.set(0, 1, 0)
     this.orthoCamera.lookAt(0, 0, 0)
 
     this.scene = new THREE.Scene()
@@ -54,7 +56,8 @@ export class SceneManager {
 
   private makeControls(): OrbitControls {
     const c = new OrbitControls(this.orthoCamera, this.renderer.domElement)
-    c.enableDamping = false
+    c.enableDamping = true
+    c.dampingFactor = 0.08
     c.screenSpacePanning = true
     c.zoomToCursor = true
     // Left-click is owned by the interaction layer; right-click = rotate

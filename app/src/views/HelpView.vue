@@ -81,11 +81,13 @@ const sections = [
           <tbody>
             <tr><td>Pan</td><td>Scroll-wheel drag, Middle-mouse drag, or Space+drag</td></tr>
             <tr><td>Zoom</td><td>Scroll wheel (up = zoom in)</td></tr>
+            <tr><td>Rotate (3D)</td><td>Right-mouse drag (orbit around center)</td></tr>
+            <tr><td>Switch view</td><td>Use <strong>Top / Front / Side / Iso</strong> buttons in WorkplaneControls (left sidebar)</td></tr>
             <tr><td>Fit to view</td><td><strong>⊡ Fit</strong> button in left sidebar, or press <strong>F</strong></td></tr>
             <tr><td>Toggle grid snap</td><td>Press <strong>G</strong></td></tr>
           </tbody>
         </table>
-        <p class="text-sm text-slate-500 mt-2">The crosshair at world (0, 0) marks the origin. Grid lines adapt to zoom level automatically.</p>
+        <p class="text-sm text-slate-500 mt-2">The origin is at world (0, 0, 0) with a crosshair marked. Grid lines adapt to zoom level automatically. The canvas uses orthographic projection (always 3D-capable) — adjust the workplane Z elevation in WorkplaneControls for multi-story work.</p>
       </section>
 
       <!-- Keyboard Shortcuts -->
@@ -117,10 +119,11 @@ const sections = [
         <h3 class="sub-heading">Supports</h3>
         <p class="help-text">SELECT a node → choose Support type in the right panel:</p>
         <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
-          <li><strong>None</strong> — free node</li>
-          <li><strong>Pinned</strong> — restrained Fx, Fy (triangle symbol)</li>
-          <li><strong>Fixed</strong> — restrained Fx, Fy, M (bar symbol)</li>
-          <li><strong>Roller</strong> — restrained in one direction; choose X-axis or Y-axis</li>
+          <li><strong>None</strong> — free node (no constraints)</li>
+          <li><strong>Pinned</strong> — restrained in X and Y directions (triangle symbol); allows rotation</li>
+          <li><strong>Fixed</strong> — fully restrained in X, Y, and rotation M (bar symbol); no movement or rotation</li>
+          <li><strong>Roller-X / Roller-Y</strong> — restrained in one in-plane direction; choose X-axis or Y-axis</li>
+          <li><strong>Roller-Z</strong> — restrained in Z direction (out-of-plane, for 3D frames only); allows in-plane movement and rotation</li>
         </ul>
 
         <h3 class="sub-heading">Structure Type</h3>
@@ -143,16 +146,24 @@ const sections = [
         <h2 class="section-heading">Applying Loads</h2>
 
         <h3 class="sub-heading">Point Load (L)</h3>
-        <p class="help-text">Press <kbd class="kbd">L</kbd> → click a node → enter Fx, Fy → choose load case (D/L/W/E/S) → Add Load.</p>
+        <p class="help-text">Press <kbd class="kbd">L</kbd> → click a node → enter Fx, Fy (and Fz for 3D analysis) → choose load case (D/L/W/E/S) → Add Load. The Fz field (vertical load) is visible only when in 3D camera mode.</p>
 
         <h3 class="sub-heading">Distributed Load (D)</h3>
-        <p class="help-text">Press <kbd class="kbd">D</kbd> → click a member → enter w1 (start) and w2 (end) — set equal for uniform load → choose direction and load case → Add Load.</p>
+        <p class="help-text">Press <kbd class="kbd">D</kbd> → click a member → enter w1 (start) and w2 (end) intensity values — set equal for uniform load → choose direction and load case → Add Load.</p>
+        <p class="help-text mt-1"><strong>Direction options:</strong> <em>Global Y</em> (vertical, gravity direction) or <em>Local Y</em> (perpendicular to member axis in the member's local 2D plane).</p>
 
         <h3 class="sub-heading">Moment (R)</h3>
         <p class="help-text">Press <kbd class="kbd">R</kbd> (Frame only) → click a node → enter magnitude (+ = CCW) → Add Load.</p>
 
         <h3 class="sub-heading">Self-weight</h3>
-        <p class="help-text">Click <strong>⚖ Self-weight</strong> in left sidebar. Generates Dead loads automatically from assigned member profiles using <code class="code">w = mass × 9.81 / 1000 kN/m</code>. Idempotent — safe to re-click.</p>
+        <p class="help-text">Click <strong>⚖ Self-weight</strong> in the Loads tab (left sidebar). This generates distributed loads from the steel profiles assigned to your members.</p>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
+          <li><strong>Not automatic:</strong> You must click the button to add self-weight — it doesn't apply by default</li>
+          <li><strong>Calculates from profile:</strong> Each member's weight = profile density × cross-sectional area × length, converted to distributed load <code class="code">w = mass × 9.81 / 1000 kN/m</code></li>
+          <li><strong>Adds to Dead case:</strong> Generated loads appear in the Dead (D) load case in your load list</li>
+          <li><strong>Idempotent:</strong> Safe to click multiple times — re-clicking updates based on current profiles (useful if you change member sizes)</li>
+          <li><strong>Use case:</strong> Click before design checks to include structural weight in capacity assessment</li>
+        </ul>
 
         <h3 class="sub-heading">Editing Loads</h3>
         <p class="help-text">In SELECT mode, click any load arrow on canvas → right panel pre-fills for editing → click Update Load or Delete.</p>
@@ -161,7 +172,18 @@ const sections = [
       <!-- Combinations -->
       <section id="combos" class="mb-10">
         <h2 class="section-heading">Load Cases &amp; Combinations</h2>
-        <p class="help-text mb-2">Open the <strong>Combo</strong> tab in the right panel. Pick one combination as <em>active</em> — all Run and Design Check results use its factors.</p>
+        <p class="help-text mb-2">Five load case categories are available: <strong>D</strong> (Dead), <strong>L</strong> (Live), <strong>W</strong> (Wind), <strong>E</strong> (Seismic), <strong>S</strong> (Snow). Each load you add is assigned to one case. Combinations are multipliers applied to each case.</p>
+
+        <h3 class="sub-heading">How It Works</h3>
+        <p class="help-text">Open the <strong>Combo</strong> tab in the right panel and pick one combination as <em>active</em>. When you click <strong>Run</strong>, the solver applies that combination's factors to your loads:</p>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
+          <li>Each load case (D, L, W, E, S) is multiplied by its factor</li>
+          <li>All multiplied loads are summed together</li>
+          <li>The stiffness matrix is solved with combined loads</li>
+          <li>Results (diagrams, reactions, design check) reflect this single active combination</li>
+        </ul>
+
+        <h3 class="sub-heading">Preset LRFD Combinations</h3>
         <table class="data-table">
           <thead><tr><th>Preset</th><th>Formula</th></tr></thead>
           <tbody>
@@ -171,43 +193,83 @@ const sections = [
             </tr>
           </tbody>
         </table>
-        <p class="help-text mt-2">Add custom combinations with any D/L/W/E/S factors via the "Add Combination" button.</p>
+        <p class="help-text mt-2">Add custom combinations with any D/L/W/E/S factors via the "Add Combination" button. <strong>Tip:</strong> To check all combinations at once (instead of one-by-one), use <strong>⊛ Envelope</strong> Analysis.</p>
       </section>
 
       <!-- Analysis -->
       <section id="analysis" class="mb-10">
         <h2 class="section-heading">Running Analysis</h2>
-        <p class="help-text">Click <strong>▶ Run</strong> in the left sidebar. The solver assembles the stiffness matrix, applies factored loads from the active combination, and solves for displacements, reactions, and member forces.</p>
-        <p class="help-text mt-2">Results appear in the <strong>Analysis</strong> page: Diagrams (N/V/M), Reactions, Displacements, Member End Forces, and Design Assessment tabs.</p>
-        <p class="help-text mt-2">Toggle <strong>DEF</strong> in the Analysis diagrams view to see the deformed shape (amplification adjustable in Settings, 0.0x–50.0x).</p>
+        <p class="help-text mb-2">Click <strong>▶ Run</strong> in the left sidebar to execute a finite element analysis of your structure under the active load combination.</p>
+
+        <h3 class="sub-heading">How It Works</h3>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
+          <li><strong>Assemble stiffness matrix:</strong> Solver combines 6-DOF frame elements (or 3-DOF truss elements) into a global stiffness matrix K</li>
+          <li><strong>Apply loads:</strong> The active combination's factors are applied to each load case (D, L, W, etc.) and summed into load vector F</li>
+          <li><strong>Apply boundary conditions:</strong> Supports constrain displacement degrees of freedom</li>
+          <li><strong>Solve Kd = F:</strong> Matrix equation solved for nodal displacements d</li>
+          <li><strong>Back-substitute:</strong> Reactions and member end forces computed from displacements</li>
+        </ul>
+        <p class="help-text mt-2"><strong>3D analysis:</strong> Frames support full 6-DOF (ux, uy, uz, θx, θy, θz) and 3D bending (My, Mz) with out-of-plane effects. Trusses support 3-DOF (ux, uy, uz) with axial-only forces.</p>
+
+        <h3 class="sub-heading">Viewing Results</h3>
+        <p class="help-text">Results appear in the <strong>Analysis</strong> page with tabs for: Diagrams (N/V/M/Vz/My/T), Reactions, Displacements, Member End Forces, and Design Assessment.</p>
+        <p class="help-text mt-1">Toggle <strong>DEF</strong> in the Diagrams view to show deformed shape (amplification factor adjustable in Settings, 0.0x–50.0x).</p>
       </section>
 
       <!-- Envelope -->
       <section id="envelope" class="mb-10">
         <h2 class="section-heading">Envelope Analysis</h2>
-        <p class="help-text">Click <strong>⊛ Envelope</strong> in the left sidebar to run all load combinations in one pass and find worst-case forces per member.</p>
-        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-2">
-          <li>Design Assessment shows <strong>Envelope</strong> toggle — each member row shows which combination governed (indigo badge)</li>
-          <li>DiagramPanel also has Envelope toggle — shows min/max band across all combinations</li>
-          <li>Auto-size All uses envelope forces when in envelope mode</li>
+        <p class="help-text mb-2">Click <strong>⊛ Envelope</strong> in the left sidebar to run all LRFD load combinations in one pass and find the worst-case demands for each member.</p>
+
+        <h3 class="sub-heading">How It Works</h3>
+        <p class="help-text">Envelope analysis automatically applies all standard LRFD combinations (1.4D, 1.2D+1.6L, 1.2D+1.0W, etc.) to your structure and determines which combination produces the highest utilization ratio (UR) for each member.</p>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
+          <li>Runs all combinations simultaneously — faster than running each manually</li>
+          <li>Identifies governing combination per member — shown in indigo badge next to each member name</li>
+          <li>Reports worst UR combined — the combined interaction (axial + bending) for each member</li>
         </ul>
+
+        <h3 class="sub-heading">Why Use Envelope?</h3>
+        <p class="help-text">In real design, you don't know beforehand which load case will be critical for each member. A beam might see its worst shear from wind, but worst moment from live load. Envelope automatically finds the governing case — essential for safe, realistic design assessment.</p>
+
+        <h3 class="sub-heading">Using Envelope in Analysis</h3>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-2">
+          <li><strong>Design Assessment tab:</strong> Toggle <strong>Envelope</strong> to switch from single-combination results to worst-case per member</li>
+          <li><strong>Diagrams tab:</strong> Envelope toggle shows min/max force band across all combinations (shaded region)</li>
+          <li><strong>Auto-size All:</strong> When enabled, uses envelope forces to find the lightest profile that passes all combinations</li>
+        </ul>
+
+        <p class="help-text mt-2"><strong>Example:</strong> If member M1 shows <code class="code">UR=0.82 (1.2D+1.0W)</code>, it means the Dead+Wind combination governs — that's the case you must design for even if other combinations show lower UR values.</p>
       </section>
 
       <!-- Design Assessment -->
       <section id="design" class="mb-10">
         <h2 class="section-heading">Design Assessment (LRFD)</h2>
-        <p class="help-text mb-2">AISC 360 LRFD utilization ratios per member — visible in the Analysis page Design Assessment tab.</p>
+        <p class="help-text mb-2">After analysis, the Design Assessment tab shows AISC 360 LRFD utilization ratios (UR) for each member.</p>
+
+        <h3 class="sub-heading">How It Works</h3>
+        <p class="help-text">Each member's demand (axial force, bending moment, shear) is compared against its capacity (φPn, φMn, φVn) using AISC 360 formulas:</p>
+        <ul class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2 mt-1">
+          <li><strong>UR Axial:</strong> Demand / capacity considering column buckling (Euler/Johnson) for compression or plastic tension strength</li>
+          <li><strong>UR Bending:</strong> Moment demand / flexural capacity with lateral-torsional buckling (LTB) checks</li>
+          <li><strong>UR Shear:</strong> Shear demand / capacity (φVn = 0.6·Fy·Av)</li>
+          <li><strong>UR Combined:</strong> H1-1 interaction equation combines all three; when ≤ 1.0 = PASS, 0.8–1.0 = MARGINAL, > 1.0 = FAIL</li>
+        </ul>
+
+        <h3 class="sub-heading">Utilization Ratios Table</h3>
         <table class="data-table">
           <thead><tr><th>Column</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td>UR Axial</td><td>Axial force / axial capacity (φPn) — compression column curve, tension φt·Fy</td></tr>
-            <tr><td>UR Bending</td><td>Moment / flexural capacity (φMn) with LTB check</td></tr>
+            <tr><td>UR Axial</td><td>Axial force / axial capacity (φPn)</td></tr>
+            <tr><td>UR Bending</td><td>Moment / flexural capacity (φMn) with LTB</td></tr>
             <tr><td>UR Shear</td><td>Shear / shear capacity (φVn = 0.6·Fy·Av)</td></tr>
-            <tr><td>UR Combined</td><td>H1-1 interaction — governs design; color-coded PASS/MARGINAL/FAIL</td></tr>
+            <tr><td>UR Combined</td><td>H1-1 interaction — governs design; color: PASS (green) / MARGINAL (yellow) / FAIL (red)</td></tr>
           </tbody>
         </table>
-        <p class="help-text mt-2">Click <strong>▼</strong> on any member row to expand <em>Alternatives</em> — browse other profiles in the same class, switch to Graph tab for D3 bar chart view, and click Apply to swap instantly.</p>
-        <p class="help-text mt-2">Click <strong>⚡ Auto-size All</strong> (shown when FAIL/MARGINAL members exist) to auto-assign the lightest passing profile to each failing member.</p>
+
+        <h3 class="sub-heading">Design Optimization</h3>
+        <p class="help-text">Click <strong>▼</strong> on any member row to expand <em>Alternatives</em> — browse other profiles in the same class, switch to Graph tab for D3 capacity bar chart, and click Apply to swap instantly.</p>
+        <p class="help-text mt-2">Click <strong>⚡ Auto-size All</strong> (shown when FAIL/MARGINAL members exist) to auto-assign the lightest passing profile to each failing member. This runs both active and envelope modes.</p>
       </section>
 
       <!-- Import/Export -->

@@ -381,6 +381,7 @@ Known limitations and missing functionality compared to a full-featured structur
 9. ~~**3D FEM solver (Phase 3)**~~ — ✅ Done (frame 6-DOF, truss 3-DOF, 12×12 element stiffness, local axis frame, approximate J, Vy/Vz/My/Mz/T member forces)
 10. ~~**3D UI bridge (Phase 4)**~~ — ✅ Done (Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape with uz)
 11. ~~**Remove 2D mode (Phase 5)**~~ — ✅ Done (single ortho camera, rotation always enabled, WorkplaneControls/Fz/Z always visible, 2D/3D toggle removed)
+12. **Multi-lingual support (i18n/l10n)** — 🔲 Future (estimated 2–3 days effort, low priority)
 
 ### 3D Canvas Roadmap (In Progress)
 
@@ -437,6 +438,43 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Load arrows (Three.js) — `LoadsRenderer.ts`: point loads (Fx/Fy/Fz arrows), distributed loads (multi-arrow + profile/member baseline via `polyLine()`), moment loads (arc ring); proportional scaling by global maxF; correct direction (head at node/member surface); wired into `StructureCanvas.vue`
 - ✅ Support symbols (Three.js) — `SupportRenderer.ts`: `THREE.Mesh` filled geometry; Pin (blue-600 cone + amber hinge ring + ground disc), Fixed (slate-900 box + EdgesGeometry + ground plate), Roller (cyan-600 cone + rail plate + cylinder wheels, rollerAxis 'x'/'y'/'z' all supported); wired into `StructureCanvas.vue`
 - ✅ Node/Member labels — HTML overlay in `StructureCanvas.vue`: per-frame `updateLabels()` via `addFrameCallback`; projects node/member-midpoint to screen pixels; renders as `<span>` with `pointer-events: none`; node labels = N1/N2/… (slate-500), member labels = M1/M2/… (slate-400)
+
+### Localization Roadmap (Future — Optional)
+
+**Objective:** Support Thai, Mandarin, Vietnamese, and other languages for structural engineers in Asia-Pacific region.
+
+| Phase | Scope | Effort | Status |
+|-------|-------|--------|--------|
+| **Phase 1** | Core UI text extraction + vue-i18n setup | 1 day | 🔲 Not started |
+| **Phase 2** | Translate UI to Thai + validate engineering terms | 0.5 day | 🔲 Not started |
+| **Phase 3** | Add Mandarin + Vietnamese translations | 1 day | 🔲 Not started |
+| **Phase 4** | Number/unit formatting per locale (Intl API) | 0.5 day | 🔲 Not started |
+
+**Phase 1 plan (Core infrastructure):**
+- Install `vue-i18n` + create `src/locales/` folder with `en.json`, `th.json`, etc.
+- Extract hardcoded strings from:
+  - `HelpView.vue` (guide, tables, descriptions)
+  - All `*Panel.vue` components (labels, buttons, tooltips)
+  - `StructureCanvas.vue` (error messages, tooltips)
+  - Validation messages in composables/stores
+- Add language selector dropdown in Settings (or navbar)
+- Store selected language in `settingsStore` + localStorage
+
+**Phase 2 plan (Thai translation):**
+- Translate UI strings to Thai (maintains keyboard shortcuts in English)
+- Validate AISC 360 terminology equivalents (e.g., "Utilization Ratio" → "อัตราการใช้งาน", "Lateral-Torsional Buckling" → "การโก่งตัวแบบ Lateral-Torsional")
+- Test report generation in Thai
+
+**Challenges:**
+- **Technical terms:** No standard Thai/Vietnamese equivalents for "Lateral-Torsional Buckling", "Utilization Ratio", "H1-1 Interaction" — will require engineering glossary or best-practice terms
+- **Number formatting:** Thais use comma for decimal (1,5 = 1.5) — `Intl.NumberFormat` handles this natively
+- **Help page:** Currently ~300 lines — needs careful extraction to maintain table layout and code formatting
+- **Report:** Date format, number formatting, unit labels all locale-aware
+
+**Benefits:**
+- Expands user base to Thai/Vietnamese structural engineers
+- Lower barrier to entry for non-English speakers
+- Competitive advantage in ASEAN market
 
 ---
 
