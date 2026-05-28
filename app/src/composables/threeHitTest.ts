@@ -141,3 +141,22 @@ export function segIntersectsRect(
          segCross(x1,y1,x2,y2, maxX,maxY,minX,maxY) ||
          segCross(x1,y1,x2,y2, minX,maxY,minX,minY)
 }
+
+/** Find the closest load within thrPx screen pixels of (clientX, clientY). */
+export function hitLoad(
+  clientX: number, clientY: number,
+  loadPositions: Array<{ id: string; worldPos: { x: number; y: number; z: number } }>,
+  scene: SceneManager,
+  canvas: HTMLElement,
+  thrPx = 20
+): string | null {
+  const cr = canvas.getBoundingClientRect()
+  let best: string | null = null
+  let bestD = Infinity
+  for (const load of loadPositions) {
+    const { sx, sy } = projectToScreen(load.worldPos.x, load.worldPos.y, load.worldPos.z, scene.camera, cr)
+    const d = Math.hypot(clientX - sx, clientY - sy)
+    if (d < thrPx && d < bestD) { bestD = d; best = load.id }
+  }
+  return best
+}

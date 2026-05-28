@@ -7,6 +7,7 @@ import { useSteelProfileStore } from './steelProfileStore'
 
 export const useLoadsStore = defineStore('loads', () => {
   const loads = ref<Load[]>([])
+  const selectedLoadId = ref<string | null>(null)
 
   const pointLoads = computed(() => loads.value.filter((l): l is PointLoad => l.type === 'point_load'))
   const distributedLoads = computed(() => loads.value.filter((l): l is DistributedLoad => l.type === 'distributed_load'))
@@ -72,6 +73,14 @@ export const useLoadsStore = defineStore('loads', () => {
     loads.value = [...data]
   }
 
+  function selectLoad(id: string) {
+    selectedLoadId.value = id
+  }
+
+  function clearLoadSelection() {
+    selectedLoadId.value = null
+  }
+
   function generateSelfWeight(): number {
     const structureStore = useStructureStore()
     const profileStore = useSteelProfileStore()
@@ -106,6 +115,7 @@ export const useLoadsStore = defineStore('loads', () => {
 
   return {
     loads,
+    selectedLoadId,
     pointLoads,
     distributedLoads,
     momentLoads,
@@ -121,6 +131,8 @@ export const useLoadsStore = defineStore('loads', () => {
     deleteLoad,
     clearLoads,
     loadSnapshot,
+    selectLoad,
+    clearLoadSelection,
     generateSelfWeight,
   }
 })

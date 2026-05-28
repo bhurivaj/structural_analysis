@@ -3,18 +3,22 @@ import type { StructureNode, Member } from '@/types/structure'
 
 const C_NODE = new THREE.Color(0x1e293b)
 const C_NODE_SEL = new THREE.Color(0x2563eb)
+const C_NODE_GLOW = new THREE.Color(0xbfdbfe)
 const C_MEMBER = new THREE.Color(0x475569)
-const C_MEMBER_SEL = new THREE.Color(0x2563eb)
+const C_MEMBER_SEL = new THREE.Color(0x3b82f6)
 const C_TENSION = new THREE.Color(0xf97316)
 const C_DEFORMED = new THREE.Color(0x3b82f6)
 
 export class StructureRenderer {
   private scene: THREE.Scene
   private nodePoints: THREE.Points | null = null
+  private nodeGlow: THREE.Points | null = null
   private memberLines: THREE.LineSegments | null = null
+  private memberSelectionLines: THREE.LineSegments | null = null
   private deformedLines: THREE.LineSegments | null = null
   private ghostLine: THREE.Line | null = null
   private epHandles: THREE.Points | null = null
+  private epHandleGlow: THREE.Points | null = null
   private epGhost: THREE.Line | null = null
   private snapRing: THREE.Points | null = null
 
@@ -37,7 +41,9 @@ export class StructureRenderer {
 
   private updateNodes(nodes: StructureNode[], selectedNodeIds: string[]) {
     this.remove(this.nodePoints)
+    this.remove(this.nodeGlow)
     this.nodePoints = null
+    this.nodeGlow = null
     if (!nodes.length) return
 
     const pos = new Float32Array(nodes.length * 3)
@@ -57,36 +63,99 @@ export class StructureRenderer {
     this.nodePoints = new THREE.Points(geo, mat)
     this.nodePoints.renderOrder = 2
     this.scene.add(this.nodePoints)
+
+    // Node glow ring for selected nodes
+    const selectedNodes = nodes.filter(n => sel.has(n.id))
+    if (selectedNodes.length > 0) {
+      const glowPos = new Float32Array(selectedNodes.length * 3)
+      selectedNodes.forEach((n, i) => {
+        glowPos[i * 3] = n.x
+        glowPos[i * 3 + 1] = n.y
+        glowPos[i * 3 + 2] = n.z ?? 0
+      })
+      const glowGeo = new THREE.BufferGeometry()
+      glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3))
+      const glowMat = new THREE.PointsMaterial({
+        size: 20,
+        sizeAttenuation: false,
+        color: C_NODE_GLOW,
+        transparent: true,
+        opacity: 0.6,
+        depthTest: false
+      })
+      this.nodeGlow = new THREE.Points(glowGeo, glowMat)
+      this.nodeGlow.renderOrder = 1
+      this.scene.add(this.nodeGlow)
+    }
   }
 
   private updateMembers(members: Member[], nodes: StructureNode[], selectedMemberIds: string[]) {
     this.remove(this.memberLines)
+    this.remove(this.memberSelectionLines)
     this.memberLines = null
+    this.memberSelectionLines = null
     if (!members.length) return
 
     const nodeMap = new Map(nodes.map(n => [n.id, n]))
-    const pos = new Float32Array(members.length * 6)
-    const col = new Float32Array(members.length * 6)
     const sel = new Set(selectedMemberIds)
 
-    members.forEach((m, i) => {
+    // Pass A: Unselected members only
+    const unselectedMembers: Member[] = []
+    const unselectedPos: number[] = []
+    const unselectedCol: number[] = []
+
+    members.forEach((m) => {
+      if (sel.has(m.id)) return // Skip selected, will be drawn in passes B+C
+
       const n1 = nodeMap.get(m.startNodeId)
       const n2 = nodeMap.get(m.endNodeId)
       if (!n1 || !n2) return
-      const b = i * 6
-      pos[b] = n1.x; pos[b + 1] = n1.y; pos[b + 2] = n1.z ?? 0
-      pos[b + 3] = n2.x; pos[b + 4] = n2.y; pos[b + 5] = n2.z ?? 0
-      const c = sel.has(m.id) ? C_MEMBER_SEL : m.tensionOnly ? C_TENSION : C_MEMBER
-      col[b] = c.r; col[b + 1] = c.g; col[b + 2] = c.b
-      col[b + 3] = c.r; col[b + 4] = c.g; col[b + 5] = c.b
+
+      unselectedMembers.push(m)
+      unselectedPos.push(n1.x, n1.y, n1.z ?? 0, n2.x, n2.y, n2.z ?? 0)
+
+      const c = m.tensionOnly ? C_TENSION : C_MEMBER
+      unselectedCol.push(c.r, c.g, c.b, c.r, c.g, c.b)
     })
 
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3))
-    this.memberLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true }))
-    this.memberLines.renderOrder = 1
-    this.scene.add(this.memberLines)
+    if (unselectedMembers.length > 0) {
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(unselectedPos), 3))
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(unselectedCol), 3))
+      this.memberLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true }))
+      this.memberLines.renderOrder = 1
+      this.scene.add(this.memberLines)
+    }
+
+    // Pass B: Selected members overlay — single pass, always on top
+    if (selectedMemberIds.length > 0) {
+      const selPos: number[] = []
+      const selMembers: Member[] = []
+
+      members.forEach((m) => {
+        if (!sel.has(m.id)) return
+        const n1 = nodeMap.get(m.startNodeId)
+        const n2 = nodeMap.get(m.endNodeId)
+        if (!n1 || !n2) return
+        selMembers.push(m)
+        selPos.push(n1.x, n1.y, n1.z ?? 0, n2.x, n2.y, n2.z ?? 0)
+      })
+
+      if (selMembers.length > 0) {
+        const selCols = new Float32Array(selMembers.length * 6)
+        for (let i = 0; i < selCols.length; i += 6) {
+          selCols[i] = C_MEMBER_SEL.r; selCols[i + 1] = C_MEMBER_SEL.g; selCols[i + 2] = C_MEMBER_SEL.b
+          selCols[i + 3] = C_MEMBER_SEL.r; selCols[i + 4] = C_MEMBER_SEL.g; selCols[i + 5] = C_MEMBER_SEL.b
+        }
+        const geoSel = new THREE.BufferGeometry()
+        geoSel.setAttribute('position', new THREE.BufferAttribute(new Float32Array(selPos), 3))
+        geoSel.setAttribute('color', new THREE.BufferAttribute(selCols, 3))
+        const matSel = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, depthWrite: false })
+        this.memberSelectionLines = new THREE.LineSegments(geoSel, matSel)
+        this.memberSelectionLines.renderOrder = 20
+        this.scene.add(this.memberSelectionLines)
+      }
+    }
   }
 
   private updateDeformed(
@@ -143,13 +212,26 @@ export class StructureRenderer {
 
   setEpHandles(positions: Array<{ x: number; y: number; z?: number }>) {
     this.remove(this.epHandles); this.epHandles = null
+    this.remove(this.epHandleGlow); this.epHandleGlow = null
     if (!positions.length) return
+
     const pos = new Float32Array(positions.length * 3)
-    positions.forEach((p, i) => { pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = (p.z ?? 0) + 0.1 })
+    positions.forEach((p, i) => { pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = p.z ?? 0 })
+
+    const geoGlow = new THREE.BufferGeometry()
+    geoGlow.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3))
+    this.epHandleGlow = new THREE.Points(geoGlow, new THREE.PointsMaterial({
+      size: 24, sizeAttenuation: false, color: C_NODE_GLOW, transparent: true, opacity: 0.6, depthTest: false
+    }))
+    this.epHandleGlow.renderOrder = 1
+    this.scene.add(this.epHandleGlow)
+
     const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    this.epHandles = new THREE.Points(geo, new THREE.PointsMaterial({ size: 14, sizeAttenuation: false, color: 0x22d3ee }))
-    this.epHandles.renderOrder = 5
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3))
+    this.epHandles = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: 14, sizeAttenuation: false, color: C_NODE_SEL, depthTest: false
+    }))
+    this.epHandles.renderOrder = 21
     this.scene.add(this.epHandles)
   }
 
@@ -191,10 +273,13 @@ export class StructureRenderer {
 
   dispose() {
     this.remove(this.nodePoints)
+    this.remove(this.nodeGlow)
     this.remove(this.memberLines)
+    this.remove(this.memberSelectionLines)
     this.remove(this.deformedLines)
     this.setGhostLine(null, null)
     this.setEpHandles([])
+    this.remove(this.epHandleGlow)
     this.setEpGhost(null, null)
     this.setSnapRing(null)
   }

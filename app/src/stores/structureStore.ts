@@ -88,6 +88,7 @@ export const useStructureStore = defineStore('structure', () => {
     selectedNodeIds.value = []
     selectedMemberIds.value = []
     pendingMemberStartNodeId.value = null
+    useLoadsStore().clearLoadSelection()
   }
 
   function setStructureType(type: StructureType): number {

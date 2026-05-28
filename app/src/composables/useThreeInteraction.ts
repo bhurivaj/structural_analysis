@@ -1,13 +1,15 @@
 import { ref, computed } from 'vue'
 import type { SceneManager } from '@/components/canvas/three/SceneManager'
 import type { StructureRenderer } from '@/components/canvas/three/StructureRenderer'
+import type { LoadsRenderer } from '@/components/canvas/three/LoadsRenderer'
 import { useStructureStore } from '@/stores/structureStore'
+import { useLoadsStore } from '@/stores/loadsStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useCanvasTool } from '@/composables/useCanvasTool'
 import { useCanvasViewport } from '@/composables/useCanvasViewport'
 import { useCanvasMode } from '@/composables/useCanvasMode'
 import { useCanvasKeys } from '@/composables/useCanvasKeys'
-import { clientToWorld, clientToWorldXZ, projectToScreen, hitNode, hitMember } from '@/composables/threeHitTest'
+import { clientToWorld, clientToWorldXZ, projectToScreen, hitNode, hitMember, hitLoad } from '@/composables/threeHitTest'
 import { isTopView, toWorldOnPlane, applyRubberBandSelection } from '@/composables/threeViewHelpers'
 
 export type SelectionRect = { x: number; y: number; w: number; h: number }
@@ -15,11 +17,13 @@ export type SelectionRect = { x: number; y: number; w: number; h: number }
 let _scene: SceneManager | null = null
 let _rend: StructureRenderer | null = null
 let _canvas: HTMLElement | null = null
+let _loadsRend: LoadsRenderer | null = null
 
 export function useThreeInteraction() {
   const structure = useStructureStore()
   const settings = useSettingsStore()
-  const { activeTool, setPendingLoadTarget } = useCanvasTool()
+  const { activeTool, setPendingLoadTarget, setEditingLoad } = useCanvasTool()
+  const loads = useLoadsStore()
   const { snapPoint } = useCanvasViewport()
   const { workplaneZ } = useCanvasMode()
   const { isSpaceHeld, attach: attachKeys, detach: detachKeys } = useCanvasKeys()
@@ -167,6 +171,15 @@ export function useThreeInteraction() {
       const mid = _scene && _canvas ? hitMember(e.clientX, e.clientY, structure.members, structure.nodeById, _scene, _canvas) : null
       if (mid) { e.stopPropagation(); structure.selectMember(mid, e.shiftKey); return }
 
+      const lid = _scene && _canvas && _loadsRend ? hitLoad(e.clientX, e.clientY, _loadsRend.getLoadPositions(), _scene, _canvas) : null
+      if (lid) {
+        e.stopPropagation()
+        loads.selectLoad(lid)
+        setEditingLoad(lid)
+        structure.clearSelection()
+        return
+      }
+
       e.stopPropagation()
       _selStart = { cx: e.clientX, cy: e.clientY, topView }
     }
@@ -254,8 +267,8 @@ export function useThreeInteraction() {
     _selStart = null; _selDragging = false; selectionRect.value = null
   }
 
-  function attach(scene: SceneManager, rend: StructureRenderer, canvas: HTMLElement) {
-    _scene = scene; _rend = rend; _canvas = canvas
+  function attach(scene: SceneManager, rend: StructureRenderer, canvas: HTMLElement, loadsRend?: LoadsRenderer) {
+    _scene = scene; _rend = rend; _canvas = canvas; _loadsRend = loadsRend || null
     canvas.addEventListener('pointerdown', handlePointerDown, { capture: true })
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -270,7 +283,7 @@ export function useThreeInteraction() {
     window.removeEventListener('mousemove', handleMouseMove)
     window.removeEventListener('mouseup', handleMouseUp)
     detachKeys()
-    _scene = null; _rend = null; _canvas = null
+    _scene = null; _rend = null; _canvas = null; _loadsRend = null
   }
 
   return { selectionRect, selectionMode, isSpaceHeld, attach, detach }

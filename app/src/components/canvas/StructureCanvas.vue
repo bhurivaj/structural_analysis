@@ -68,7 +68,8 @@ function updateScene() {
   )
   loadsRend?.update(
     loads.pointLoads, loads.distributedLoads, loads.momentLoads,
-    structure.nodes, structure.members
+    structure.nodes, structure.members,
+    loads.selectedLoadId
   )
   suppRend?.update(structure.nodes)
 }
@@ -110,7 +111,7 @@ onMounted(() => {
     }
     updateLabels()
   })
-  attach(sceneMan, structRend, sceneMan.renderer.domElement)
+  attach(sceneMan, structRend, sceneMan.renderer.domElement, loadsRend)
   updateScene()
 })
 
@@ -128,7 +129,7 @@ watch(
     () => structure.nodes, () => structure.members,
     () => structure.selectedNodeIds, () => structure.selectedMemberIds,
     () => solver.result, () => solver.showDeformed, () => solver.deformedScale,
-    () => loads.loads,
+    () => loads.loads, () => loads.selectedLoadId,
   ],
   updateScene, { deep: true }
 )
