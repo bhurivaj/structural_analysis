@@ -12,7 +12,7 @@ Calculates per-member utilization ratios (UR) using Load and Resistance Factor D
 
 ### 1. Member Length
 
-Computed from node coordinates (m → mm)
+3D length from node coordinates (x, y, z) via `memberLength3D()` × 1000 (m → mm). Before Oct 2026 z was ignored, so members along Z got L=0 and skipped buckling/LTB.
 
 ### 2. Axial Capacity (AISC E3 column curve)
 
@@ -34,14 +34,22 @@ Computed from node coordinates (m → mm)
 - If Lb > Lp: φb×Mn = 0.63 × Fy × Sx (conservative lower bound at Lr)
   - Lb defaults to full member length (conservative assumption)
 
-**UR_bending** = (|M|×1e6) / (φb×Mn)
+**Weak axis (3D, My):** φb×Mny = 0.9 × Fy × Sy (no LTB about weak axis)
+
+**UR_bending** = (|Mz|×1e6) / (φb×Mnx) + (|My|×1e6) / (φb×Mny), i.e. the full bending term of H1-1. `UR_combined` still equals the H1-1 result shown in the UI.
 
 ### 4. Shear Capacity (AISC G2)
 
 - Av = d × tw for I/H sections; else Av = 0.6 × A
 - φv×Vn = 1.0 × 0.6 × Fy × Av (N)
 
-**UR_shear** = (|V|×1000) / (φv×Vn)
+**Weak axis (Vz):** Avz = 2·bf·tf (I/H/C/WF/LLC), bf·tf (L), 2·bf·t (RHS), A/2 (CHS/RoundPipe)
+
+**Torsion (T):** τ = T / Ct, φT = 0.9, capacity 0.6·Fy
+- HSS (AISC H3.1): RHS Ct = 2(B−t)(H−t)t − 4.5(4−π)t³; CHS Ct = π(D−t)²t/2
+- Open sections: St-Venant Ct = J / t_max (J from `approximateJ.ts`)
+
+**UR_shear** = max(|Vy|/φVny, |Vz|/φVnz) + |T|/φTn (linear sum, conservative vs. H3-6)
 
 ### 5. LRFD Bilinear Interaction (H1-1)
 
@@ -49,6 +57,21 @@ Computed from node coordinates (m → mm)
 - Else: UR_interaction = UR_axial/2 + UR_bending (H1-1b)
 
 **UR_combined** = max(UR_interaction, UR_shear)
+
+### 5a. 3D Section Properties & Known Limitations
+
+`section3DProps(profile)` in `src/utils/urSection.ts` derives `Sy`, `Avz`, `Ct` (TIS data has no Sy/Zy):
+- **Sy:** Iy/(bf/2) for H/I/WF/RHS; Iy/bf for C/LLC/L (centroid unknown → conservative); Sx for CHS/RoundPipe
+- **Limitations (not AISC-complete):**
+  - Weak-axis capacity uses Fy·Sy (yield), not min(Fy·Zy, 1.6Fy·Sy)
+  - Open-section torsion ignores warping (AISC Design Guide 9)
+  - HSS torsion assumes compact walls (Fcr = 0.6Fy, no local buckling)
+  - L sections use geometric axes, not principal axes
+  - Source data appears to swap tf/tw for some classes (e.g. `H 100×100×8×6` stores tf=6, tw=8); formulas use stored values
+- Manual members (no profile) skip the 3D checks (no Sy/Avz/Ct)
+- Legacy results without Vz/My/T arrays are treated as 0
+
+**Tests:** `src/utils/__tests__/biaxialDesignCheck.test.ts` — Sy/Avz/Ct per class, pure My, H1-1a/b biaxial, Vz + T shear, 2D-identical results, Z-axis member length, legacy results, autosize picks heavier section under My.
 
 ### 6. Tension-Only Members (Special Case)
 

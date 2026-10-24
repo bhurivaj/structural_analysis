@@ -169,7 +169,7 @@ See `./docs/` for detailed guides:
 
 **Vue template pattern:** `!` non-null assertion is invalid in Vue templates — wrap in a `requireX()` script function that uses `!` and call that in the template instead
 
-**Testing:** 150 E2E tests + 457 unit tests (607 total). Shared mock: `src/test-utils/mocks.ts` → `mockMemberResult()`
+**Testing:** 150 E2E tests + 470 unit tests (620 total). Shared mock: `src/test-utils/mocks.ts` → `mockMemberResult()`
 
 ---
 
@@ -239,7 +239,7 @@ TIS profile data (`src/data/`) stores `ry: 0` for **all 374 profiles** — it is
 ry = profile.Iy > 0 ? Math.sqrt(profile.Iy / profile.A) : 0
 ```
 
-Both `designCheck.ts` and `autoSize.ts` must use this formula for consistent UR values. Using `profile.ry` directly will produce ry = 0, which silently skips the column buckling check.
+Both `designCheck.ts` and `autoSize.ts` must use this formula for consistent UR values. Shared UR logic (biaxial H1-1, Vz, torsion, 3D length) lives in `utils/urSection.ts`. Using `profile.ry` directly will produce ry = 0, which silently skips the column buckling check.
 
 ### Session & Persistence
 

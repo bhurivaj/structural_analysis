@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { memberLength3D } from '@/solver/geometry3D'
 import { computed } from 'vue'
 import { useSolverStore } from '@/stores/solverStore'
 import { useStructureStore } from '@/stores/structureStore'
@@ -24,7 +25,7 @@ function memberLength(m: ReturnType<typeof structure.memberById>): number {
   const n1 = structure.nodeById(m.startNodeId)
   const n2 = structure.nodeById(m.endNodeId)
   if (!n1 || !n2) return 0
-  return Math.sqrt((n2.x - n1.x) ** 2 + (n2.y - n1.y) ** 2)
+  return memberLength3D(n1, n2)
 }
 
 function nodeName(id: string) { return structure.nodeById(id)?.label || id.slice(0, 6) }

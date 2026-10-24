@@ -20,8 +20,8 @@ export interface Member {
   E: number
   A: number
   I: number
-  Iy?: number  // I about local y-axis (strong axis / gravity bending = profile.Ix)
-  Iz?: number  // I about local z-axis (weak axis / lateral bending = profile.Iy)
+  Iy?: number  // I about local y-axis (weak axis / XZ lateral bending: Vz, My = profile.Iy)
+  Iz?: number  // I about local z-axis (strong axis / XY gravity bending: Vy, Mz = profile.Ix)
   J?: number   // torsion constant (approximate)
   isTruss: boolean
   tensionOnly?: boolean

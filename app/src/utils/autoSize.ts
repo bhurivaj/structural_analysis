@@ -1,32 +1,14 @@
 import type { MemberResult } from '@/types/solver'
 import type { Member, StructureNode } from '@/types/structure'
 import type { SteelProfile } from '@/types/steel'
-import { computeURForSection, type URValues, type URSectionProps, type URForces } from './designCheck'
+import {
+  computeURForSection, forcesFromResult, memberLengthMm, section3DProps,
+  type URValues, type URSectionProps,
+} from './urSection'
 
 export interface AlternativeResult {
   profile: SteelProfile
   urValues: URValues
-}
-
-function extractForces(mr: MemberResult): URForces {
-  const maxAbsN = Math.max(...mr.N.map(Math.abs), 0)
-  const maxAbsV = Math.max(...mr.V.map(Math.abs), 0)
-  const maxAbsM = Math.max(...mr.M.map(Math.abs), 0)
-  const criticalNIndex = mr.N.reduce(
-    (idx, v, i) => (Math.abs(v) > Math.abs(mr.N[idx]) ? i : idx),
-    0,
-  )
-  const isCompression = mr.N[criticalNIndex] < 0
-  return { maxAbsN, maxAbsV, maxAbsM, isCompression }
-}
-
-function memberLengthMm(member: Member, nodes: Map<string, StructureNode>): number {
-  const start = nodes.get(member.startNodeId)
-  const end = nodes.get(member.endNodeId)
-  if (!start || !end) return 0
-  const dx = (end.x - start.x) * 1000
-  const dy = (end.y - start.y) * 1000
-  return Math.sqrt(dx * dx + dy * dy)
 }
 
 function profileToSection(profile: SteelProfile): URSectionProps {
@@ -38,6 +20,7 @@ function profileToSection(profile: SteelProfile): URSectionProps {
     d: profile.d ?? 0,
     tw: profile.tw ?? 0,
     E: profile.E,
+    ...section3DProps(profile),
   }
 }
 
@@ -52,7 +35,7 @@ export function getAlternatives(
   preferredClass?: string,
   limit = 15,
 ): AlternativeResult[] {
-  const forces = extractForces(mr)
+  const forces = forcesFromResult(mr)
   const L_mm = memberLengthMm(member, nodes)
   const tensionOnly = !!member.tensionOnly
 
@@ -80,7 +63,7 @@ export function findOptimalProfile(
   urFail: number,
   preferSameClass = true,
 ): SteelProfile | null {
-  const forces = extractForces(mr)
+  const forces = forcesFromResult(mr)
   const L_mm = memberLengthMm(member, nodes)
   const tensionOnly = !!member.tensionOnly
 

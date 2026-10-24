@@ -6,8 +6,8 @@ import { transformationMatrix12x12 } from './geometry3D'
  * Local DOF order: [ux1, uy1, uz1, θx1, θy1, θz1, ux2, uy2, uz2, θx2, θy2, θz2]
  *
  * Section moments of inertia (in local frame):
- *   Iy = I about local y-axis → resists bending in XZ plane (gravity, strong axis)
- *   Iz = I about local z-axis → resists bending in XY plane (lateral, weak axis)
+ *   Iy = I about local y-axis → resists bending in XZ plane (lateral, weak axis)
+ *   Iz = I about local z-axis → resists bending in XY plane (gravity, strong axis)
  *   J  = St-Venant torsion constant
  *
  * Units: E in kN/m², A in m², Iy/Iz/J in m⁴, G in kN/m², L in m.
