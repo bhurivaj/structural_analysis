@@ -113,8 +113,8 @@ src/
 
 8. **Testing**
    - **150 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions, 3D workplane
-   - **470 Vitest unit tests** across 30 test files — biaxialDesignCheck (13, weak-axis/torsion UR); envelope3D (5, Vz/My/T envelope); useUndoRedo undo-within-debounce regression; Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof; useCanvasMode updated for 2D removal
-   - **Total: 620 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
+   - **473 Vitest unit tests** across 31 test files — steelProfileData (3, tf/tw vs designation); biaxialDesignCheck (13, weak-axis/torsion UR); envelope3D (5, Vz/My/T envelope); useUndoRedo undo-within-debounce regression; Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof; useCanvasMode updated for 2D removal
+   - **Total: 623 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
@@ -385,6 +385,7 @@ Known limitations and missing functionality compared to a full-featured structur
 12. **Multi-lingual support (i18n/l10n)** — 🔲 Future (estimated 2–3 days effort, low priority)
 13. ~~**Envelope 3D forces (Vz/My/T)**~~ — ✅ Done
 14. ~~**Biaxial + torsion design check**~~ — ✅ Done: `utils/urSection.ts` adds My (H1-1 weak-axis term), Vz and T to UR; design length now 3D. Limitations in DESIGN_SYSTEM.md §5a
+16. ~~**TIS tf/tw swap**~~ — ✅ Fixed 168 H/I/C/WideFlange profiles (flange/web thickness were swapped)
 15. ~~**Undo within 300ms debounce**~~ — ✅ Fixed: `undo()`/`redo()` commit a pending snapshot first (previously undid one step too far)
 
 ### 3D Canvas Roadmap (In Progress)
@@ -409,7 +410,7 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; always visible at `absolute top-2 right-2`
 - ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled (RIGHT=ROTATE, MIDDLE=ROTATE, LEFT=PAN); **default view now isometric** (camera at equal XYZ diagonal, up=Y, OrbitControls enableDamping=true, dampingFactor=0.08); no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
 - ✅ **Interaction plane awareness:** `useThreeInteraction.ts` uses `isTopView()` (from `threeViewHelpers.ts`) to select projection plane — top view → XZ plane (`clientToWorldXZ`), front/side view → XY plane (`clientToWorld`); node drag, ADD_NODE placement, and rubber-band selection all respect current camera orientation
-- ✅ Tests: 470 unit tests (30 files) + 150 E2E tests (15 spec files)
+- ✅ Tests: 473 unit tests (31 files) + 150 E2E tests (15 spec files)
 
 **Phase 4 status (✅ Done):**
 - ✅ `LoadPanel.vue` — Fz input field (shown in 3D camera mode); included in add/update/edit round-trip

@@ -67,7 +67,7 @@ Calculates per-member utilization ratios (UR) using Load and Resistance Factor D
   - Open-section torsion ignores warping (AISC Design Guide 9)
   - HSS torsion assumes compact walls (Fcr = 0.6Fy, no local buckling)
   - L sections use geometric axes, not principal axes
-  - Source data appears to swap tf/tw for some classes (e.g. `H 100×100×8×6` stores tf=6, tw=8); formulas use stored values
+- **TIS data tf/tw fixed (Oct 2026):** 168 H/I/C/WideFlange profiles had flange/web swapped (e.g. `H 100×100×8×6` stored tf=6, tw=8 → now tf=8 flange, tw=6 web). Shear Av = d·tw was overestimated (unconservative). Guarded by `src/data/__tests__/steelProfileData.test.ts`
 - Manual members (no profile) skip the 3D checks (no Sy/Avz/Ct)
 - Legacy results without Vz/My/T arrays are treated as 0
 
