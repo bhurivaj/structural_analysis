@@ -102,4 +102,23 @@ describe('useUndoRedo', () => {
 
     expect(undoRedo.canRedo.value).toBe(false)
   })
+
+  // ── undo before debounce elapses ─────────────────────────────────────────────
+  it('undo within 300ms of an edit reverts only that edit, not the step before', async () => {
+    structure.addNode({ x: 10, y: 0, support: 'free' })
+    await nextTick()
+    vi.advanceTimersByTime(300)
+    await nextTick()
+    const committed = structure.nodes.length
+
+    structure.addNode({ x: 11, y: 0, support: 'free' })
+    await nextTick()            // debounce timer pending, not yet committed
+    undoRedo.undo()
+    await nextTick()
+    expect(structure.nodes.length).toBe(committed)
+
+    undoRedo.redo()
+    await nextTick()
+    expect(structure.nodes.length).toBe(committed + 1)
+  })
 })

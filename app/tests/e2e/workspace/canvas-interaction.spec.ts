@@ -11,7 +11,7 @@ async function placeNode(page: Parameters<typeof test>[1] extends (...args: infe
 
 test.describe('Canvas Interaction', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    await page.goto('/')
     await waitForCanvas(page)
   })
 

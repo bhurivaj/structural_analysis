@@ -16,6 +16,7 @@ const future = ref<UndoSnapshot[]>([])
 let _prev: UndoSnapshot | null = null
 let _isRestoring = false
 let _timer: ReturnType<typeof setTimeout>
+let _pending = false
 let _watchSetUp = false
 const MAX_STACK = 50
 
@@ -39,6 +40,17 @@ function _restore(snap: UndoSnapshot) {
   nextTick(() => { _isRestoring = false })
 }
 
+function _commit() {
+  clearTimeout(_timer)
+  _pending = false
+  if (_prev !== null) {
+    past.value.push(_prev)
+    if (past.value.length > MAX_STACK) past.value.shift()
+  }
+  future.value = []
+  _prev = _capture()
+}
+
 export function useUndoRedo() {
   const structure = useStructureStore()
   const loads = useLoadsStore()
@@ -54,14 +66,8 @@ export function useUndoRedo() {
       () => {
         if (_isRestoring) return
         clearTimeout(_timer)
-        _timer = setTimeout(() => {
-          if (_prev !== null) {
-            past.value.push(_prev)
-            if (past.value.length > MAX_STACK) past.value.shift()
-          }
-          future.value = []
-          _prev = _capture()
-        }, 300)
+        _pending = true
+        _timer = setTimeout(_commit, 300)
       },
       { deep: true },
     )
@@ -71,8 +77,9 @@ export function useUndoRedo() {
   const canRedo = computed(() => future.value.length > 0)
 
   function undo() {
+    // Commit an edit still inside the debounce window so undo reverts it, not the step before
+    if (_pending) _commit()
     if (!past.value.length) return
-    clearTimeout(_timer)
     future.value.push(_capture())
     const prev = past.value.pop()!
     _restore(prev)
@@ -80,8 +87,8 @@ export function useUndoRedo() {
   }
 
   function redo() {
+    if (_pending) _commit()
     if (!future.value.length) return
-    clearTimeout(_timer)
     past.value.push(_capture())
     const next = future.value.pop()!
     _restore(next)

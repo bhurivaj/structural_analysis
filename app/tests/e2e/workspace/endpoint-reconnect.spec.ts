@@ -10,7 +10,8 @@ async function createTwoNodeMember(page: Page) {
   await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
   await page.waitForTimeout(80)
   await page.click('#structure-canvas', { position: { x: 450, y: 300 } })
-  await page.waitForTimeout(80)
+  // Wait past the 300ms undo debounce so nodes and member are separate undo snapshots
+  await page.waitForTimeout(400)
 
   await page.keyboard.press('m')
   await page.click('#structure-canvas', { position: { x: 350, y: 300 } })
@@ -28,7 +29,7 @@ async function selectMember(page: Page) {
 
 test.describe('Endpoint Reconnect (Member Drag)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5173/')
+    await page.goto('/')
     await waitForCanvas(page)
   })
 
