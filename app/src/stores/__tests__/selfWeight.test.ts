@@ -70,6 +70,7 @@ describe('generateSelfWeight', () => {
     structure.addMember({
       startNodeId: n1.id,
       endNodeId: n2.id,
+      steelProfileId: null,
       E: 200000,
       A: 5000,
       I: 10000000,

@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { computeEnvelopeDiagrams } from '../envelopeAnalysis'
 import type { PerComboResult } from '@/types/solver'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 function makeStations(n: number) {
   return Array.from({ length: n }, (_, i) => i / (n - 1))
 }
 
 function makeMR(memberId: string, N: number[], V: number[], M: number[]) {
-  return { memberId, stations: makeStations(N.length), N, V, M, endForces: [] }
+  return mockMemberResult({ memberId, stations: makeStations(N.length), N, V, M, endForces: [] })
 }
 
 describe('computeEnvelopeDiagrams', () => {

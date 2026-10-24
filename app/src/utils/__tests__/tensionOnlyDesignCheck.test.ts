@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { performDesignCheck } from '@/utils/designCheck'
 import type { Member, StructureNode } from '@/types/structure'
 import type { MemberResult } from '@/types/solver'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 describe('Design Check — Tension-Only Members', () => {
   const nodes = new Map<string, StructureNode>([
@@ -29,14 +30,14 @@ describe('Design Check — Tension-Only Members', () => {
     ])
 
     const memberResults: MemberResult[] = [
-      {
+      mockMemberResult({
         memberId: 'M1',
         stations: [0, 0.5, 1],
         N: [50, 50, 50], // 50 kN tension
         V: [0, 0, 0],
         M: [0, 0, 0],
         endForces: [50, 0, 0, 50, 0, 0],
-      },
+      }),
     ]
 
     const steelProfiles = new Map()
@@ -97,14 +98,14 @@ describe('Design Check — Tension-Only Members', () => {
     ])
 
     const memberResults: MemberResult[] = [
-      {
+      mockMemberResult({
         memberId: 'M1',
         stations: [0, 0.5, 1],
         N: [0, 0, 0], // slack: zero force
         V: [0, 0, 0],
         M: [0, 0, 0],
         endForces: [0, 0, 0, 0, 0, 0],
-      },
+      }),
     ]
 
     const steelProfiles = new Map()
@@ -167,22 +168,22 @@ describe('Design Check — Tension-Only Members', () => {
 
     // Same forces for both
     const memberResults: MemberResult[] = [
-      {
+      mockMemberResult({
         memberId: 'M1',
         stations: [0, 0.5, 1],
         N: [50, 50, 50],
         V: [0, 0, 0],
         M: [0, 0, 0],
         endForces: [50, 0, 0, 50, 0, 0],
-      },
-      {
+      }),
+      mockMemberResult({
         memberId: 'M2',
         stations: [0, 0.5, 1],
         N: [50, 50, 50],
         V: [0, 0, 0],
         M: [0, 0, 0],
         endForces: [50, 0, 0, 50, 0, 0],
-      },
+      }),
     ]
 
     const steelProfiles = new Map()
@@ -231,14 +232,14 @@ describe('Design Check — Tension-Only Members', () => {
 
     // Cable with unexpected moment (shouldn't happen in practice)
     const memberResults: MemberResult[] = [
-      {
+      mockMemberResult({
         memberId: 'M1',
         stations: [0, 0.5, 1],
         N: [30, 30, 30],
         V: [5, 5, 5],
         M: [100, 100, 100], // ← ignored for cable
         endForces: [30, 5, 100, 30, 5, 100],
-      },
+      }),
     ]
 
     const steelProfiles = new Map()

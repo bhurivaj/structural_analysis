@@ -234,8 +234,8 @@ function cancelEdit() {
         <span class="flex items-center gap-1.5 min-w-0">
           <span
             class="shrink-0 px-1 rounded text-[10px] font-bold leading-4"
-            :class="CASE_COLORS[(load as any).loadCase ?? 'D']"
-          >{{ (load as any).loadCase ?? 'D' }}</span>
+            :class="CASE_COLORS[load.loadCase ?? 'D']"
+          >{{ load.loadCase ?? 'D' }}</span>
           <span class="truncate">{{ (load as any).label ?? (load.type === 'point_load' ? `PL @ ${(load as any).nodeId.slice(0, 4)}` : load.type === 'distributed_load' ? `DL @ ${(load as any).memberId?.slice(0, 4)}` : `ML @ ${(load as any).nodeId?.slice(0, 4)}`) }}</span>
         </span>
         <button class="text-red-500 hover:text-red-700 shrink-0" @click.stop="loads.deleteLoad(load.id)">×</button>

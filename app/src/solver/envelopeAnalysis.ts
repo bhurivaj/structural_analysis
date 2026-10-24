@@ -1,5 +1,7 @@
 import type { MemberResult, MemberEnvelope, MemberDiagramEnvelope, PerComboResult } from '@/types/solver'
 
+const ABS_KEYS = ['V', 'M', 'Vz', 'My', 'T'] as const
+
 export function computeEnvelope(perComboResults: PerComboResult[]): MemberEnvelope[] {
   const memberIds = new Set<string>()
   for (const { memberResults } of perComboResults) {
@@ -13,10 +15,8 @@ export function computeEnvelope(perComboResults: PerComboResult[]): MemberEnvelo
     let maxTensionN_combo = ''
     let maxCompressionN = 0
     let maxCompressionN_combo = ''
-    let maxAbsV = 0
-    let maxAbsV_combo = ''
-    let maxAbsM = 0
-    let maxAbsM_combo = ''
+    const absMax = { V: 0, M: 0, Vz: 0, My: 0, T: 0 }
+    const absCombo = { V: '', M: '', Vz: '', My: '', T: '' }
 
     for (const { comboId, memberResults } of perComboResults) {
       const mr = memberResults.find(r => r.memberId === memberId)
@@ -33,16 +33,12 @@ export function computeEnvelope(perComboResults: PerComboResult[]): MemberEnvelo
         }
       }
 
-      const localMaxV = Math.max(...mr.V.map(Math.abs), 0)
-      if (localMaxV > maxAbsV) {
-        maxAbsV = localMaxV
-        maxAbsV_combo = comboId
-      }
-
-      const localMaxM = Math.max(...mr.M.map(Math.abs), 0)
-      if (localMaxM > maxAbsM) {
-        maxAbsM = localMaxM
-        maxAbsM_combo = comboId
+      for (const key of ABS_KEYS) {
+        const local = Math.max(...(mr[key] ?? []).map(Math.abs), 0)
+        if (local > absMax[key]) {
+          absMax[key] = local
+          absCombo[key] = comboId
+        }
       }
     }
 
@@ -52,10 +48,16 @@ export function computeEnvelope(perComboResults: PerComboResult[]): MemberEnvelo
       maxTensionN_combo,
       maxCompressionN,
       maxCompressionN_combo,
-      maxAbsV,
-      maxAbsV_combo,
-      maxAbsM,
-      maxAbsM_combo,
+      maxAbsV: absMax.V,
+      maxAbsV_combo: absCombo.V,
+      maxAbsM: absMax.M,
+      maxAbsM_combo: absCombo.M,
+      maxAbsVz: absMax.Vz,
+      maxAbsVz_combo: absCombo.Vz,
+      maxAbsMy: absMax.My,
+      maxAbsMy_combo: absCombo.My,
+      maxAbsT: absMax.T,
+      maxAbsT_combo: absCombo.T,
     })
   }
 
@@ -79,26 +81,28 @@ export function computeEnvelopeDiagrams(perComboResults: PerComboResult[]): Memb
 
     const stations = allResults[0].stations
     const n = stations.length
-    const inf = Infinity
-    const minN = new Array(n).fill(inf)
-    const maxN = new Array(n).fill(-inf)
-    const minV = new Array(n).fill(inf)
-    const maxV = new Array(n).fill(-inf)
-    const minM = new Array(n).fill(inf)
-    const maxM = new Array(n).fill(-inf)
-
-    for (const mr of allResults) {
-      for (let i = 0; i < n; i++) {
-        if (mr.N[i] < minN[i]) minN[i] = mr.N[i]
-        if (mr.N[i] > maxN[i]) maxN[i] = mr.N[i]
-        if (mr.V[i] < minV[i]) minV[i] = mr.V[i]
-        if (mr.V[i] > maxV[i]) maxV[i] = mr.V[i]
-        if (mr.M[i] < minM[i]) minM[i] = mr.M[i]
-        if (mr.M[i] > maxM[i]) maxM[i] = mr.M[i]
+    const range = (key: 'N' | 'V' | 'M' | 'Vz' | 'My' | 'T') => {
+      const min = new Array(n).fill(Infinity)
+      const max = new Array(n).fill(-Infinity)
+      for (const mr of allResults) {
+        const vals = mr[key] ?? []
+        for (let i = 0; i < n; i++) {
+          const v = vals[i] ?? 0
+          if (v < min[i]) min[i] = v
+          if (v > max[i]) max[i] = v
+        }
       }
+      return [min, max]
     }
 
-    result.push({ memberId, stations, minN, maxN, minV, maxV, minM, maxM })
+    const [minN, maxN] = range('N')
+    const [minV, maxV] = range('V')
+    const [minM, maxM] = range('M')
+    const [minVz, maxVz] = range('Vz')
+    const [minMy, maxMy] = range('My')
+    const [minT, maxT] = range('T')
+
+    result.push({ memberId, stations, minN, maxN, minV, maxV, minM, maxM, minVz, maxVz, minMy, maxMy, minT, maxT })
   }
 
   return result
@@ -107,12 +111,18 @@ export function computeEnvelopeDiagrams(perComboResults: PerComboResult[]): Memb
 export function envelopeToMemberResult(e: MemberEnvelope): MemberResult {
   const criticalN =
     e.maxCompressionN >= e.maxTensionN ? -e.maxCompressionN : e.maxTensionN
+  const pair = (v = 0) => [v, v]
   return {
     memberId: e.memberId,
     stations: [0, 1],
-    N: [criticalN, criticalN],
-    V: [e.maxAbsV, e.maxAbsV],
-    M: [e.maxAbsM, e.maxAbsM],
+    N: pair(criticalN),
+    V: pair(e.maxAbsV),
+    M: pair(e.maxAbsM),
+    Vy: pair(e.maxAbsV),
+    Vz: pair(e.maxAbsVz),
+    My: pair(e.maxAbsMy),
+    Mz: pair(e.maxAbsM),
+    T: pair(e.maxAbsT),
     endForces: [criticalN, e.maxAbsV, e.maxAbsM, criticalN, e.maxAbsV, e.maxAbsM],
   }
 }

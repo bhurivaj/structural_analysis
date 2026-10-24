@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { performDesignCheckEnvelope } from '@/utils/designCheck'
 import type { Member, StructureNode } from '@/types/structure'
 import type { PerComboResult } from '@/types/solver'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 function makeMR(memberId: string, N: number[], V: number[], M: number[]) {
-  return { memberId, stations: [0, 1], N, V, M, endForces: [] }
+  return mockMemberResult({ memberId, stations: [0, 1], N, V, M, endForces: [] })
 }
 
 const node1: StructureNode = { id: 'n1', x: 0, y: 0, support: 'pinned', label: 'N1' }
@@ -14,6 +15,7 @@ const member: Member = {
   id: 'm1',
   startNodeId: 'n1',
   endNodeId: 'n2',
+  steelProfileId: null,
   E: 200000,
   A: 2000,
   I: 1e6,

@@ -60,6 +60,12 @@ tests/e2e/
 
 **Naming convention:** `*.spec.ts` for E2E tests
 
+### Shared Mocks & Node 25+
+
+- **`src/test-utils/mocks.ts` → `mockMemberResult({ memberId, N, V, M, ...})`** — fills `stations`, `endForces`, and 3D fields (Vy=V, Mz=M, Vz/My/T=0). Use it instead of hand-written `MemberResult` literals so new fields don't break every test.
+- **`vite.config.ts` `test.execArgv: ['--no-experimental-webstorage']`** — Node 25+ exposes a global `localStorage` that shadows jsdom's and is `undefined`, failing settingsStore/loadCasesStore tests.
+- **E2E port clash:** `playwright.config.ts` uses `reuseExistingServer: true` on :5173 — if another app holds that port, all E2E tests hit the wrong app.
+
 ## Test Coverage Requirements
 
 ### For Each Feature (MANDATORY)

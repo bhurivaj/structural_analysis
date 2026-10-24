@@ -4,6 +4,7 @@ import { computeURForSection, performDesignCheck } from '@/utils/designCheck'
 import type { Member, StructureNode } from '@/types/structure'
 import type { MemberResult } from '@/types/solver'
 import type { SteelProfile } from '@/types/steel'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 // Minimal profile factory
 function makeProfile(id: string, mass: number, A: number, Sx: number, profileClass: 'H' | 'I' = 'H'): SteelProfile {
@@ -47,24 +48,24 @@ const member: Member = {
 }
 
 // Heavy load that only large profiles can handle
-const heavyMr: MemberResult = {
+const heavyMr = mockMemberResult({
   memberId: 'M1',
   stations: [0, 0.5, 1],
   N: [0, 0, 0],
   V: [5, 5, 5],
   M: [50, 60, 50], // 60 kN·m — needs large Sx
   endForces: [0, 5, 50, 0, 5, 50],
-}
+})
 
 // Light load that even small profiles pass
-const lightMr: MemberResult = {
+const lightMr = mockMemberResult({
   memberId: 'M1',
   stations: [0, 0.5, 1],
   N: [0, 0, 0],
   V: [0.01, 0.01, 0.01],
   M: [0.05, 0.06, 0.05],
   endForces: [0, 0.01, 0.05, 0, 0.01, 0.05],
-}
+})
 
 // Profiles sorted by mass: small → large
 const profiles: SteelProfile[] = [
@@ -105,14 +106,14 @@ describe('computeURForSection — sanity check', () => {
 
 describe('findOptimalProfile', () => {
   it('returns null when no profile can handle the load', () => {
-    const impossibleMr: MemberResult = {
+    const impossibleMr = mockMemberResult({
       memberId: 'M1',
       stations: [0, 0.5, 1],
       N: [0, 0, 0],
       V: [0, 0, 0],
       M: [99999, 99999, 99999], // enormous moment
       endForces: [],
-    }
+    })
     const result = findOptimalProfile(impossibleMr, member, nodes, profiles, 250, 0.8, 1.0)
     expect(result).toBeNull()
   })
@@ -141,14 +142,14 @@ describe('findOptimalProfile', () => {
 
   it('returns lightest profile that achieves UR_combined < urFail', () => {
     // Medium load: only medium or large profiles pass
-    const mediumMr: MemberResult = {
+    const mediumMr = mockMemberResult({
       memberId: 'M1',
       stations: [0, 0.5, 1],
       N: [0, 0, 0],
       V: [0, 0, 0],
       M: [15, 18, 15],  // 18 kN·m
       endForces: [],
-    }
+    })
     const result = findOptimalProfile(mediumMr, member, nodes, profiles, 250, 0.8, 1.0)
     expect(result).not.toBeNull()
     // The found profile must actually pass
@@ -235,14 +236,14 @@ describe('ry regression: sub-table UR matches main-table UR', () => {
   ])
 
   // Compression member — triggers column curve; ry = 0 would bypass it entirely
-  const compressionMr: MemberResult = {
+  const compressionMr = mockMemberResult({
     memberId: 'M1',
     stations: [0, 0.5, 1],
     N: [-200, -200, -200],
     V: [5, 5, 5],
     M: [3, 4, 3],
     endForces: [-200, 5, 3, -200, 5, 3],
-  }
+  })
 
   it('getAlternatives UR_axial matches performDesignCheck for compression (column curve)', () => {
     const alts = getAlternatives(
@@ -281,14 +282,14 @@ describe('ry regression: sub-table UR matches main-table UR', () => {
   })
 
   it('both paths agree for a tension member (no column curve involved)', () => {
-    const tensionMr: MemberResult = {
+    const tensionMr = mockMemberResult({
       memberId: 'M1',
       stations: [0, 0.5, 1],
       N: [150, 150, 150],
       V: [2, 2, 2],
       M: [1, 1.5, 1],
       endForces: [150, 2, 1, 150, 2, 1],
-    }
+    })
 
     const alts = getAlternatives(
       tensionMr, memberWithProfile, testNodes,

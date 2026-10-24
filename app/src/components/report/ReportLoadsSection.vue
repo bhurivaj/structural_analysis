@@ -75,10 +75,10 @@ function memberName(id: string) {
         <tr v-for="l in loads.loads" :key="l.id" class="border-b border-slate-100">
           <td class="px-2 py-1 font-medium">{{ (l as any).label || '—' }}</td>
           <td class="px-2 py-1">
-            <span class="px-1 rounded text-[10px] font-bold" :class="CASE_COLORS[(l as any).loadCase ?? 'D']">
-              {{ (l as any).loadCase ?? 'D' }}
+            <span class="px-1 rounded text-[10px] font-bold" :class="CASE_COLORS[l.loadCase ?? 'D']">
+              {{ l.loadCase ?? 'D' }}
             </span>
-            <span class="text-slate-400 text-[10px] ml-0.5">{{ CASE_NAMES[(l as any).loadCase ?? 'D'] }}</span>
+            <span class="text-slate-400 text-[10px] ml-0.5">{{ CASE_NAMES[l.loadCase ?? 'D'] }}</span>
           </td>
           <td class="px-2 py-1 capitalize">{{ l.type.replace(/_/g, ' ') }}</td>
           <td class="px-2 py-1">

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { computeEnvelope, envelopeToMemberResult } from '../envelopeAnalysis'
 import type { PerComboResult } from '@/types/solver'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 function makeMR(memberId: string, N: number[], V: number[], M: number[]) {
-  return { memberId, stations: N.map((_, i) => i / (N.length - 1)), N, V, M, endForces: [] }
+  return mockMemberResult({ memberId, stations: N.map((_, i) => i / (N.length - 1)), N, V, M, endForces: [] })
 }
 
 describe('computeEnvelope', () => {

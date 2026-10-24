@@ -3,6 +3,7 @@ import { performDesignCheck } from '@/utils/designCheck'
 import type { Member, StructureNode } from '@/types/structure'
 import type { MemberResult } from '@/types/solver'
 import type { SteelProfile } from '@/types/steel'
+import { mockMemberResult } from '@/test-utils/mocks'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ const baseMember: Member = {
   id: 'm1',
   startNodeId: 'n1',
   endNodeId: 'n2',
+  steelProfileId: null,
   E: 200000,
   A: 6000,
   I: 47000000,
@@ -22,7 +24,7 @@ const baseMember: Member = {
 }
 
 function makeMR(N: number[], V: number[], M: number[]): MemberResult {
-  return { memberId: 'm1', stations: [0, 0.5, 1], N, V, M, endForces: [0, 0, 0, 0, 0, 0] }
+  return mockMemberResult({ memberId: 'm1', stations: [0, 0.5, 1], N, V, M, endForces: [0, 0, 0, 0, 0, 0] })
 }
 
 function makeProfile(overrides: Partial<SteelProfile> = {}): SteelProfile {
