@@ -160,9 +160,16 @@ See `./docs/` for detailed guides:
 - `performDesignCheckEnvelope()` returns worst UR_combined + governing combo name
 - DesignAssessmentPanel has Active/Envelope toggle; D3 bar chart capacity graph
 
+**Recent Canvas Improvements (May 28):**
+- `SceneManager.ts`: default view changed to **isometric** (camera at equal XYZ offset, up=Y, OrbitControls damping enabled)
+- `StructureRenderer.ts`: selected members drawn in separate pass at renderOrder=20 with `depthTest:false`; selected node glow ring (size=20, opacity=0.6); endpoint handle glow ring (size=24) + dot at renderOrder=21
+- `LoadsRenderer.ts`: selected load renders amber/light-violet; all Three.js objects tagged `userData = { type:'load', id }`; `getLoadPositions()` exposes per-load world positions; `loadsStore` adds `selectedLoadId` + `selectLoad()` / `clearLoadSelection()`
+- `threeHitTest.ts`: `hitLoad()` — screen-space proximity test (≤20 px) against load positions
+- `useThreeInteraction.ts`: SELECT mode now hit-tests loads; clicking a load calls `loads.selectLoad()` + `setEditingLoad()` + `structure.clearSelection()`; `attach()` accepts optional `loadsRend` param
+
 **Vue template pattern:** `!` non-null assertion is invalid in Vue templates — wrap in a `requireX()` script function that uses `!` and call that in the template instead
 
-**Testing:** 132 E2E tests + 323 unit tests (455 total)
+**Testing:** 150 E2E tests + 457 unit tests (607 total). Shared mock: `src/test-utils/mocks.ts` → `mockMemberResult()`
 
 ---
 

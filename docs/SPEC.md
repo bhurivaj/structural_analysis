@@ -45,10 +45,10 @@ src/
    - Undo/Redo with debounced snapshots (up to 50 entries)
    - Session persistence: auto-save to localStorage + resume dialog
    - **Three.js canvas (Phase 1–5 complete):** replaced D3/SVG with WebGL renderer; 2D mode removed
-     - `SceneManager.ts` — single OrthographicCamera, OrbitControls (LEFT=PAN, MIDDLE=ROTATE, RIGHT=ROTATE), resize loop; preset views (top/front/side/iso); default top view (camera at Y=10 looking down, up=-Z)
-     - `StructureRenderer.ts` — nodes (Points), members (LineSegments), deformed shape (LineDashedMaterial), ep handles, ghost line, snap ring
-     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls; camera-aware plane projection: top view → XZ plane, front/side view → XY plane
-     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane), `clientToWorldXZ` (XZ plane), node/member screen-space hit tests
+     - `SceneManager.ts` — single OrthographicCamera, OrbitControls (LEFT=PAN, MIDDLE=ROTATE, RIGHT=ROTATE), resize loop; preset views (top/front/side/iso); **default view now isometric** (camera at equal XYZ offset, up=Y, enableDamping=true dampingFactor=0.08)
+     - `StructureRenderer.ts` — nodes (Points + glow ring for selected), members (two-pass: unselected batch + selected overlay at renderOrder=20 with depthTest=false so selection is always visible), deformed shape (LineDashedMaterial), ep handles (glow ring + dot, depthTest=false), ghost line, snap ring
+     - `useThreeInteraction.ts` — Vue composable for all pointer/keyboard interactions; `pointerdown` capture to intercept OrbitControls; camera-aware plane projection; **load hit-detection in SELECT mode** — `hitLoad()` finds closest load within 20 screen-px, triggers `loads.selectLoad()` + `setEditingLoad()` + `structure.clearSelection()`; `attach()` accepts optional `loadsRend` parameter
+     - `threeHitTest.ts` — raycaster hit tests; `clientToWorld` (XY plane), `clientToWorldXZ` (XZ plane), node/member screen-space hit tests; **`hitLoad()`** — screen-space distance test against `LoadsRenderer.getLoadPositions()` array
      - `threeViewHelpers.ts` — extracted helpers: `isTopView()` (dominant-Y-offset check), `toWorldOnPlane()` (routes to correct projection), `applyRubberBandSelection()` (XZ/XY plane aware)
      - **WorkplaneControls** always visible (top-right): Z elevation input + preset view buttons
    - **Grid snap toggle (G key)** — snap new nodes to integer world units; adaptive power-of-2 grid visible at all zoom levels
@@ -113,8 +113,8 @@ src/
 
 8. **Testing**
    - **150 E2E Playwright tests** across 15 spec files: navigation, steel profiles, canvas tools, pan/zoom, unit reflection, import/export, design assessment, deformed shape, CAD interactions, member labels, tension-only, endpoint-reconnect, support icons, distributed load rendering, rubber band selection, load cases/combinations, envelope analysis, capacity graph, bug-fix regressions, 3D workplane
-   - **451 Vitest unit tests** across 28 test files — Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof; useCanvasMode updated for 2D removal
-   - **Total: 601 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
+   - **457 Vitest unit tests** across 29 test files — envelope3D (5, Vz/My/T envelope); useUndoRedo undo-within-debounce regression; Phase 3 solver tests: geometry3D (14), elementStiffness3D (13), solver3D (16), updated boundaryConditions/loadVector/dof; useCanvasMode updated for 2D removal
+   - **Total: 607 E2E + unit tests passing** — comprehensive coverage of all features and edge cases
 
 9. **Bug Fixes & Canvas Improvements (Recent Wave)**
    - **Cross-section SVG rendering:** H/I, C, L, RHS, CHS now render correctly
@@ -146,7 +146,7 @@ src/
    - **Camera rotation (mouse):** `SceneManager` OrbitControls mouseButtons fixed to `{ LEFT: PAN, MIDDLE: ROTATE, RIGHT: ROTATE }` + `contextmenu` preventDefault; left-click owned by interaction layer so PAN does not interfere; right-drag and middle-drag both rotate
    - **useThreeInteraction camera-aware:** Removed global early-return on `toWorld()`; each tool branch now computes world coords independently; hit tests (hitNode, hitMember) always work regardless of camera angle; top view projects onto XZ plane, front view onto XY plane; node drag and rubber-band selection both handle XZ vs XY correctly
    - **threeViewHelpers.ts (new file):** Extracted from `useThreeInteraction.ts` (was 332 lines, now 277) to stay within 300-line limit; contains `isTopView`, `toWorldOnPlane`, `applyRubberBandSelection`
-   - **LoadsRenderer redesign:** `LoadsRenderer.ts` fully rewritten — global maxF across all loads for proportional scaling; arrow head always at node/member (tail offset = nodePos − dir × len); length scales as `ARROW_MIN + (ARROW_MAX − ARROW_MIN) × (|f| / maxF)`; negative force → arrow points in correct direction (above member for downward-positive axis); distributed loads: profile baseline + member baseline via `polyLine()`
+   - **LoadsRenderer redesign:** `LoadsRenderer.ts` fully rewritten — global maxF across all loads for proportional scaling; arrow head always at node/member (tail offset = nodePos − dir × len); length scales as `ARROW_MIN + (ARROW_MAX − ARROW_MIN) × (|f| / maxF)`; negative force → arrow points in correct direction (above member for downward-positive axis); distributed loads: profile baseline + member baseline via `polyLine()`; **load selection highlight:** selected load renders amber (`0xfbbf24`) for point/moment, light violet (`0xc084fc`) for distributed; all Three.js objects tagged with `userData = { type: 'load', id }` for hit testing; `getLoadPositions()` exposes midpoint/node positions per load ID; `loadsStore` adds `selectedLoadId` ref + `selectLoad()` / `clearLoadSelection()` actions
    - **SupportRenderer redesign (mesh):** `SupportRenderer.ts` fully rewritten — switched from single `LineSegments` wireframe to `THREE.Mesh` filled geometry; **Pin** (blue-600): inverted cone + amber hinge torus + slate ground disc; **Fixed** (slate-900): solid box + `EdgesGeometry` wireframe outline + wider ground plate; **Roller** (cyan-600): same cone + hinge ring + flat rail plate + cylinder wheels sized/oriented per `rollerAxis`; `rollerAxis: 'z'` now fully supported; removed ~100 lines of dead 2D symbol code; `mode` parameter removed
 
 10. **Session Management**
@@ -339,6 +339,7 @@ src/
     - **DiagramPanel Active/Envelope toggle** — visible when envelope has been run; switches between single-combo line and envelope band
     - **SVG band rendering:** filled indigo polygon between max and min curves + dashed min line for clarity
     - Shows "Envelope across N combos" label when in envelope mode
+    - **3D forces:** `computeEnvelope()` also tracks `maxAbsVz/My/T` (+ governing combo); `computeEnvelopeDiagrams()` fills `minVz/maxVz/minMy/maxMy/minT/maxT`; `envelopeToMemberResult()` passes Vy/Vz/My/Mz/T through. Missing 3D arrays (legacy cached results) are treated as 0
 
 27. **Capacity Graphs**
     - **Table/Graph tabs** in each member's AlternativesRow
@@ -382,6 +383,9 @@ Known limitations and missing functionality compared to a full-featured structur
 10. ~~**3D UI bridge (Phase 4)**~~ — ✅ Done (Fz input, roller-Z, 3D results tables, Vz/My/T diagrams, 3D deformed shape with uz)
 11. ~~**Remove 2D mode (Phase 5)**~~ — ✅ Done (single ortho camera, rotation always enabled, WorkplaneControls/Fz/Z always visible, 2D/3D toggle removed)
 12. **Multi-lingual support (i18n/l10n)** — 🔲 Future (estimated 2–3 days effort, low priority)
+13. ~~**Envelope 3D forces (Vz/My/T)**~~ — ✅ Done
+14. **Biaxial + torsion design check** — 🔲 `designCheck.ts`/`autoSize.ts` use only V/M (strong axis); My, Vz, T are not yet in UR (AISC H1-1 Mry term)
+15. ~~**Undo within 300ms debounce**~~ — ✅ Fixed: `undo()`/`redo()` commit a pending snapshot first (previously undid one step too far)
 
 ### 3D Canvas Roadmap (In Progress)
 
@@ -403,9 +407,9 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Preset camera views — `SceneManager.setPresetView('top'|'front'|'side'|'iso')` with proper `camera.up` for gimbal-lock-safe top view
 - ✅ Axes gizmo — `THREE.AxesHelper` added/removed via `SceneManager.setMode()` lifecycle (appears in 3D only)
 - ✅ `WorkplaneControls.vue` (new component) — Z input (unit-converted via `settingsStore.toLength/fromLength`) + TOP/FRONT/SIDE/ISO preset buttons; always visible at `absolute top-2 right-2`
-- ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled (RIGHT=ROTATE, MIDDLE=ROTATE, LEFT=PAN); default top view (Y=10, lookAt origin, up=-Z); no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
+- ✅ **Phase 5:** `cameraMode` / `setCameraMode` removed from `useCanvasMode`; `SceneManager` single ortho camera with rotation enabled (RIGHT=ROTATE, MIDDLE=ROTATE, LEFT=PAN); **default view now isometric** (camera at equal XYZ diagonal, up=Y, OrbitControls enableDamping=true, dampingFactor=0.08); no 2D/3D toggle button; Fz + Z fields in panels always visible; empty left-click always starts rubber-band selection
 - ✅ **Interaction plane awareness:** `useThreeInteraction.ts` uses `isTopView()` (from `threeViewHelpers.ts`) to select projection plane — top view → XZ plane (`clientToWorldXZ`), front/side view → XY plane (`clientToWorld`); node drag, ADD_NODE placement, and rubber-band selection all respect current camera orientation
-- ✅ Tests: 451 unit tests (28 files) + 150 E2E tests (15 spec files)
+- ✅ Tests: 457 unit tests (29 files) + 150 E2E tests (15 spec files)
 
 **Phase 4 status (✅ Done):**
 - ✅ `LoadPanel.vue` — Fz input field (shown in 3D camera mode); included in add/update/edit round-trip
@@ -436,6 +440,8 @@ Known limitations and missing functionality compared to a full-featured structur
 - ✅ Snap to grid — G key wired to `toggleSnap()` in `useThreeInteraction.ts`
 - ✅ Node Z input — `z?: number` in `StructureNode`; Z field shown in `NodePanel` when 3D mode; `StructureRenderer` uses `n.z ?? 0`; shared state via `useCanvasMode.ts`
 - ✅ Load arrows (Three.js) — `LoadsRenderer.ts`: point loads (Fx/Fy/Fz arrows), distributed loads (multi-arrow + profile/member baseline via `polyLine()`), moment loads (arc ring); proportional scaling by global maxF; correct direction (head at node/member surface); wired into `StructureCanvas.vue`
+- ✅ **Load hit detection in SELECT mode** — `hitLoad()` in `threeHitTest.ts`: screen-space proximity check (≤20 px) against `LoadsRenderer.getLoadPositions()`; clicking a load arrow triggers `loads.selectLoad()` + `setEditingLoad()` + `structure.clearSelection()`; load renders in selection color (amber/light-violet); all Three.js load objects tagged `userData = { type: 'load', id }`
+- ✅ **StructureRenderer selection polish** — selected members rendered in separate `LineSegments` pass at renderOrder=20 with `depthTest: false` (always on top); selected nodes get a glow `Points` layer (size=20, opacity=0.6, depthTest:false) at renderOrder=1; endpoint handles also get a glow ring (size=24) + white dot at renderOrder=21
 - ✅ Support symbols (Three.js) — `SupportRenderer.ts`: `THREE.Mesh` filled geometry; Pin (blue-600 cone + amber hinge ring + ground disc), Fixed (slate-900 box + EdgesGeometry + ground plate), Roller (cyan-600 cone + rail plate + cylinder wheels, rollerAxis 'x'/'y'/'z' all supported); wired into `StructureCanvas.vue`
 - ✅ Node/Member labels — HTML overlay in `StructureCanvas.vue`: per-frame `updateLabels()` via `addFrameCallback`; projects node/member-midpoint to screen pixels; renders as `<span>` with `pointer-events: none`; node labels = N1/N2/… (slate-500), member labels = M1/M2/… (slate-400)
 
